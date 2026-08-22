@@ -2,9 +2,9 @@ name: TicketForge CI
 
 on:
   push:
-    branches: [ main, staging, 'feature/**' ]
+    branches: [ main, staging, dev, 'feature/**' ]
   pull_request:
-    branches: [ main, staging ]
+    branches: [ main, staging, dev ]
 
 jobs:
   build-and-test:

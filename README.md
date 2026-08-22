@@ -110,14 +110,17 @@ TicketForge supports 3 environment profiles configured via `SPRING_PROFILES_ACTI
 
 | Environment | Profile | Branch | Database | Auth Target | Connection Strategy |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Local Dev** | `dev` *(default)* | `feature/<name>` | In-Memory H2 | Local Mock / Supabase Dev | Embedded In-Memory |
-| **Staging / Preprod** | `preprod` | `staging` | Supabase Staging PG | Supabase Staging Auth | Direct Connection (Port `5432`) |
+| **Local Feature** | `dev` *(default)* | `feature/<name>` | In-Memory H2 | Local Mock / Supabase Dev | Embedded In-Memory |
+| **Local Integration** | `dev` *(default)* | `dev` | In-Memory H2 / Docker PG | Local Mock / Supabase Dev | Local Embedded / Docker |
+| **Cloud Staging / Preprod** | `preprod` | `staging` | Supabase Staging PG | Supabase Staging Auth | Direct Connection (Port `5432`) |
 | **Production** | `prod` | `main` | Supabase Production PG | Supabase Production Auth | PgBouncer Pooler (Port `6543`) |
 
-### 🌿 Git Branching Strategy
-* **`feature/<name>`** (e.g. `feature/phase-2-jpa`): For all local feature development. Branch off `staging`.
-* **`staging`**: Preprod / Staging integration branch. Merging feature PRs into `staging` triggers automated Staging deployment & QA tests.
-* **`main`**: Production release branch. Merging release PRs from `staging` into `main` triggers automated rolling production deployment.
+### 🌿 Git Branching & Promotion Strategy
+1. **`feature/<name>`** (e.g. `feature/phase-2-jpa`): Individual feature/task branches. Branch off `dev`.
+2. **`dev`**: Local integration & aggregation branch. Collects and integrates feature branches locally with fast H2/Docker testing.
+3. **`staging`**: Cloud Preprod / Staging deployment branch. Pull Requests from `dev` $\rightarrow$ `staging` trigger automated Staging deployment & QA tests on Supabase Staging.
+4. **`main`**: Production release branch. Pull Requests from `staging` $\rightarrow$ `main` trigger automated zero-downtime Production deployment on Supabase Prod.
+
 
 
 ### Environment Variables
