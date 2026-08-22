@@ -108,11 +108,17 @@ Once the application starts on port `8080`:
 
 TicketForge supports 3 environment profiles configured via `SPRING_PROFILES_ACTIVE`:
 
-| Environment | Profile | Database | Auth Target | Connection Strategy |
-| :--- | :--- | :--- | :--- | :--- |
-| **Local Dev** | `dev` *(default)* | In-Memory H2 | Local Mock / Supabase Dev | Embedded In-Memory |
-| **Staging** | `preprod` | Supabase Staging PG | Supabase Staging Auth | Direct Connection (Port `5432`) |
-| **Production** | `prod` | Supabase Production PG | Supabase Production Auth | PgBouncer Pooler (Port `6543`) |
+| Environment | Profile | Branch | Database | Auth Target | Connection Strategy |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Local Dev** | `dev` *(default)* | `feature/<name>` | In-Memory H2 | Local Mock / Supabase Dev | Embedded In-Memory |
+| **Staging / Preprod** | `preprod` | `staging` | Supabase Staging PG | Supabase Staging Auth | Direct Connection (Port `5432`) |
+| **Production** | `prod` | `main` | Supabase Production PG | Supabase Production Auth | PgBouncer Pooler (Port `6543`) |
+
+### 🌿 Git Branching Strategy
+* **`feature/<name>`** (e.g. `feature/phase-2-jpa`): For all local feature development. Branch off `staging`.
+* **`staging`**: Preprod / Staging integration branch. Merging feature PRs into `staging` triggers automated Staging deployment & QA tests.
+* **`main`**: Production release branch. Merging release PRs from `staging` into `main` triggers automated rolling production deployment.
+
 
 ### Environment Variables
 
