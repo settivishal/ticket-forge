@@ -112,13 +112,13 @@ TicketForge supports 3 environment profiles configured via `SPRING_PROFILES_ACTI
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Local Feature** | `dev` *(default)* | `feature/<name>` | In-Memory H2 | Local Mock / Supabase Dev | Embedded In-Memory |
 | **Local Integration** | `dev` *(default)* | `dev` | In-Memory H2 / Docker PG | Local Mock / Supabase Dev | Local Embedded / Docker |
-| **Cloud Staging / Preprod** | `preprod` | `staging` | Supabase Staging PG | Supabase Staging Auth | Direct Connection (Port `5432`) |
+| **Cloud Staging** | `staging` | `staging` | Supabase Staging PG | Supabase Staging Auth | Direct Connection (Port `5432`) |
 | **Production** | `prod` | `main` | Supabase Production PG | Supabase Production Auth | PgBouncer Pooler (Port `6543`) |
 
 ### 🌿 Git Branching & Promotion Strategy
 1. **`feature/<name>`** (e.g. `feature/phase-2-jpa`): Individual feature/task branches. Branch off `dev`.
 2. **`dev`**: Local integration & aggregation branch. Collects and integrates feature branches locally with fast H2/Docker testing.
-3. **`staging`**: Cloud Preprod / Staging deployment branch. Pull Requests from `dev` $\rightarrow$ `staging` trigger automated Staging deployment & QA tests on Supabase Staging.
+3. **`staging`**: Cloud Staging deployment branch. Pull Requests from `dev` $\rightarrow$ `staging` trigger automated Staging deployment & QA tests on Supabase Staging.
 4. **`main`**: Production release branch. Pull Requests from `staging` $\rightarrow$ `main` trigger automated zero-downtime Production deployment on Supabase Prod.
 
 
@@ -127,7 +127,7 @@ TicketForge supports 3 environment profiles configured via `SPRING_PROFILES_ACTI
 
 | Variable | Description | Default / Example |
 | :--- | :--- | :--- |
-| `SPRING_PROFILES_ACTIVE` | Active configuration profile | `dev` (or `preprod`, `prod`) |
+| `SPRING_PROFILES_ACTIVE` | Active configuration profile | `dev` (or `staging`, `prod`) |
 | `PORT` | Server HTTP port | `8080` |
 | `SUPABASE_PROJECT_ID` | Supabase Project Reference ID | `your-project-id` |
 | `SUPABASE_DB_URL` | JDBC Connection URL to PostgreSQL | `jdbc:postgresql://aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0` |
@@ -209,7 +209,7 @@ void testConcurrentSeatBookingNoDoubleBooking() throws InterruptedException {
 
 - [x] **Phase 1: Build & Config Foundation** *(Completed)*
   - Maven `pom.xml`, Java 21 LTS, Spring Boot 3.3.2, `./mvnw` wrapper
-  - Multi-profile configuration (`application-dev/preprod/prod.yml`)
+  - Multi-profile configuration (`application-dev/staging/prod.yml`)
   - Flyway V1 schema migration (`V1__init_ticketing_schema.sql`)
   - Supabase OAuth2 Resource Server & JWT Converter
   - OpenAPI 3 / Swagger UI & Actuator endpoints
@@ -261,7 +261,7 @@ ticket-forge/
     │   └── resources/
     │       ├── application.yml              <-- Shared settings & Actuator/OpenAPI
     │       ├── application-dev.yml          <-- Local H2 database profile
-    │       ├── application-preprod.yml      <-- Supabase Staging profile
+    │       ├── application-staging.yml      <-- Supabase Staging profile
     │       ├── application-prod.yml         <-- Supabase Production profile (PgBouncer)
     │       └── db/migration/                <-- Flyway version-controlled SQL migrations
     │           └── V1__init_ticketing_schema.sql

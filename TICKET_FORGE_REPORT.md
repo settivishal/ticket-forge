@@ -303,15 +303,16 @@ In real-world ticketing scenarios, thousands of concurrent threads compete for l
 
 ---
 
-## 8. Multi-Environment Deployment Strategy (Dev, Preprod, Prod)
+## 8. Multi-Environment Deployment Strategy (Dev, Staging, Prod)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           MULTI-ENVIRONMENT MATRIX                          │
 ├─────────────────┬───────────────────┬───────────────────┬───────────────────┤
-│ Characteristic  │ Dev (Local)       │ Preprod (Staging) │ Prod (Production) │
+│ Characteristic  │ Dev (Local)       │ Staging (Preprod) │ Prod (Production) │
 ├─────────────────┼───────────────────┼───────────────────┼───────────────────┤
 │ Target Hosting  │ Localhost (8080)  │ Fly.io / Render   │ Fly.io / Render   │
+│ Git Branch      │ feature/* / dev   │ staging           │ main              │
 │ Database        │ In-Memory H2 / PG │ Supabase Staging  │ Supabase Prod     │
 │ DB Connection   │ Embedded / Direct │ Direct (Port 5432)│ PgBouncer (6543)  │
 │ Auth Provider   │ Local Mock / Dev  │ Supabase Staging  │ Supabase Prod     │
@@ -324,8 +325,9 @@ In real-world ticketing scenarios, thousands of concurrent threads compete for l
 ### 8.1 Zero-Drift Configuration Architecture
 * **`application.yml`**: Shared application baseline, actuator mappings, and OpenAPI configuration.
 * **`application-dev.yml`**: Configured for rapid local iteration with H2 in-memory DB and console.
-* **`application-preprod.yml`**: Points to Supabase Staging PostgreSQL instance and Supabase Staging Auth for automated end-to-end integration and load testing.
+* **`application-staging.yml`**: Points to Supabase Staging PostgreSQL instance and Supabase Staging Auth for automated end-to-end integration and load testing.
 * **`application-prod.yml`**: Points to Supabase Production PostgreSQL instance via PgBouncer transaction pooler (port 6543) with HikariCP connection limits and production JWKS validation.
+
 
 ---
 
@@ -669,7 +671,7 @@ ticket-forge/
     │   └── resources/
     │       ├── application.yml              <-- Shared Configuration
     │       ├── application-dev.yml          <-- Local Dev (H2)
-    │       ├── application-preprod.yml      <-- Supabase Staging
+    │       ├── application-staging.yml      <-- Supabase Staging
     │       ├── application-prod.yml         <-- Supabase Prod (PgBouncer)
     │       ├── db/migration/                <-- Flyway Versioned SQL Migrations
     │       │   └── V1__init_ticketing_schema.sql
