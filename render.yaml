@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ticketforge-app
+    name: ticketforge-staging
     runtime: docker
     dockerfilePath: Dockerfile
     plan: free
@@ -8,14 +8,14 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE
-        value: prod
+        value: staging
       - key: PORT
         value: 8080
       - key: SUPABASE_PROJECT_ID
-        sync: false
+        value: mksdjnpmljjjrevywutt
       - key: SUPABASE_DB_URL
-        sync: false
+        value: jdbc:postgresql://db.mksdjnpmljjjrevywutt.supabase.co:5432/postgres?sslmode=require
       - key: SUPABASE_DB_USER
-        sync: false
+        value: postgres
       - key: SUPABASE_DB_PASSWORD
         sync: false
