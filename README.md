@@ -214,11 +214,13 @@ void testConcurrentSeatBookingNoDoubleBooking() throws InterruptedException {
   - Flyway V1 schema migration (`V1__init_ticketing_schema.sql`)
   - Supabase OAuth2 Resource Server & JWT Converter
   - OpenAPI 3 / Swagger UI & Actuator endpoints
-- [ ] **Phase 2: JPA Data, Schema & Repositories** *(Next)*
+  - Cloud Staging deployment live on Render Free Tier
+- [x] **Phase 2: JPA Data, Schema & Repositories** *(Completed)*
   - JPA Entity models (`Seat`, `Reservation`, `WaitlistEntry`, `User`)
-  - Optimistic locking (`@Version`) & Pessimistic locking queries
-  - Spring Data JPA repositories with custom derived methods
-- [ ] **Phase 3: Business Logic & In-Memory DSAs**
+  - Optimistic locking (`@Version`) & Pessimistic locking queries (`@Lock(PESSIMISTIC_WRITE)`)
+  - Jakarta Bean Validation Request/Response Record DTOs
+  - 14 `@DataJpaTest` automated integration tests
+- [ ] **Phase 3: Business Logic & In-Memory DSAs** *(Next)*
   - Generified `GenericRedBlackTree<K, V>` & Indexed `GenericMinHeap<T>`
   - `TicketForgeService` transactional operations & cascading re-allocations
   - Time-to-Live (TTL) auto-expiry background scheduler
@@ -255,6 +257,30 @@ ticket-forge/
     │   │   ├── config/                      <-- OpenAPI & Async thread pool config
     │   │   │   ├── OpenApiConfig.java
     │   │   │   └── AsyncConfig.java
+    │   │   ├── dto/                         <-- Record DTOs (Requests & Responses)
+    │   │   │   ├── ApiResponse.java
+    │   │   │   ├── ExpandSeatsRequest.java
+    │   │   │   ├── InitializeSeatsRequest.java
+    │   │   │   ├── ReleaseSeatsRequest.java
+    │   │   │   ├── ReservationRequest.java
+    │   │   │   ├── ReservationResponse.java
+    │   │   │   ├── SeatResponse.java
+    │   │   │   ├── SystemStatusResponse.java
+    │   │   │   ├── UpdatePriorityRequest.java
+    │   │   │   └── WaitlistResponse.java
+    │   │   ├── model/                       <-- JPA Domain Entities & Status Enums
+    │   │   │   ├── Reservation.java
+    │   │   │   ├── Seat.java
+    │   │   │   ├── SeatStatus.java
+    │   │   │   ├── SeatTier.java
+    │   │   │   ├── User.java
+    │   │   │   ├── WaitlistEntry.java
+    │   │   │   └── WaitlistStatus.java
+    │   │   ├── repository/                  <-- Spring Data JPA Repositories
+    │   │   │   ├── ReservationRepository.java
+    │   │   │   ├── SeatRepository.java
+    │   │   │   ├── UserRepository.java
+    │   │   │   └── WaitlistRepository.java
     │   │   └── security/                    <-- Supabase OAuth2 / Security config
     │   │       ├── SecurityConfig.java
     │   │       ├── JwtAuthenticationConverter.java
@@ -268,7 +294,12 @@ ticket-forge/
     │           └── V1__init_ticketing_schema.sql
     └── test/
         └── java/com/ticketforge/
-            └── TicketForgeApplicationTests.java
+            ├── TicketForgeApplicationTests.java
+            └── repository/                  <-- Data JPA Integration Tests
+                ├── ReservationRepositoryTest.java
+                ├── SeatRepositoryTest.java
+                ├── UserRepositoryTest.java
+                └── WaitlistRepositoryTest.java
 ```
 
 ---
