@@ -91,16 +91,17 @@ By default, the application starts with the `dev` profile using an in-memory H2 
 ```
 
 ### 3. Access Interactive Endpoints
-Once the application starts on port `8080`:
+Once the application starts on port `8080` (or visit the live Staging cloud deployment at [https://ticketforge-staging.onrender.com](https://ticketforge-staging.onrender.com)):
 
-| Resource | URL | Credentials / Notes |
+| Resource | Local URL | Live Cloud Staging (Render) |
 | :--- | :--- | :--- |
-| 🌐 **Interactive Dashboard** | [http://localhost:8080](http://localhost:8080) | Live seating visualizer & action panel |
-| 📑 **Swagger UI (OpenAPI 3)** | [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) | Interactive API exploration & testing |
-| 📄 **OpenAPI Docs (JSON)** | [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs) | Raw OpenAPI 3 JSON definition |
-| 🗄️ **H2 Database Console** | [http://localhost:8080/h2-console](http://localhost:8080/h2-console) | **JDBC URL:** `jdbc:h2:mem:ticketforge_db`<br>**User:** `sa`<br>**Password:** *(leave blank)* |
-| 💓 **Actuator Health** | [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health) | System health check (`"status": "UP"`) |
-| 📈 **Prometheus Metrics** | [http://localhost:8080/actuator/prometheus](http://localhost:8080/actuator/prometheus) | Custom ticketing metrics & JVM stats |
+| 🌐 **Interactive Dashboard** | [http://localhost:8080](http://localhost:8080) | [https://ticketforge-staging.onrender.com](https://ticketforge-staging.onrender.com) |
+| 📑 **Swagger UI (OpenAPI 3)** | [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) | [https://ticketforge-staging.onrender.com/swagger-ui.html](https://ticketforge-staging.onrender.com/swagger-ui.html) |
+| 📄 **OpenAPI Docs (JSON)** | [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs) | [https://ticketforge-staging.onrender.com/v3/api-docs](https://ticketforge-staging.onrender.com/v3/api-docs) |
+| 🗄️ **H2 Database Console** | [http://localhost:8080/h2-console](http://localhost:8080/h2-console) | *(Local dev only)* |
+| 💓 **Actuator Health** | [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health) | [https://ticketforge-staging.onrender.com/actuator/health](https://ticketforge-staging.onrender.com/actuator/health) |
+| 📈 **Prometheus Metrics** | [http://localhost:8080/actuator/prometheus](http://localhost:8080/actuator/prometheus) | [https://ticketforge-staging.onrender.com/actuator/prometheus](https://ticketforge-staging.onrender.com/actuator/prometheus) |
+
 
 ---
 
