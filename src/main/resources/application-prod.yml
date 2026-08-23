@@ -1,0 +1,40 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: ${SUPABASE_DB_URL:jdbc:postgresql://aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0}
+    username: ${SUPABASE_DB_USER:postgres.prod-project}
+    password: ${SUPABASE_DB_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: TicketForgeProdHikariPool
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      max-lifetime: 600000
+      connection-timeout: 20000
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://${SUPABASE_PROJECT_ID:prod-project}.supabase.co/auth/v1
+          jwk-set-uri: https://${SUPABASE_PROJECT_ID:prod-project}.supabase.co/auth/v1/.well-known/jwks.json
+
+logging:
+  level:
+    root: WARN
+    com.ticketforge: INFO
