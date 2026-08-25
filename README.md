@@ -225,18 +225,34 @@ void testConcurrentSeatBookingNoDoubleBooking() throws InterruptedException {
   - `TicketForgeService` transactional operations & cascading re-allocations
   - Time-to-Live (TTL) auto-expiry background scheduler (`TicketHoldTtlScheduler`)
   - 43 automated tests (including 100-thread multi-threaded concurrency race condition stress tests)
-- [ ] **Phase 4: REST Controllers, Live SSE Stream & Docs** *(Next)*
+- [ ] **Phase 4: Distributed Caching & Redis Integration** *(Next)*
+  - `spring-boot-starter-data-redis` & Redisson client integration
+  - Redis cache-aside layer for seat availability & venue layout (`@Cacheable`, `@CacheEvict`)
+  - Redisson distributed locks (`RLock`) for multi-instance cluster-safe concurrency
+  - Redis token-bucket rate limiting to block ticketing bots / scalpers
+  - Redis Pub/Sub for cross-instance real-time event broadcasting
+- [ ] **Phase 5: GraphQL Engine & Schema Architecture**
+  - `spring-boot-starter-graphql` schema-first architecture (`schema.graphqls`)
+  - Query resolvers (flexible seat maps, waitlist positions, system metrics)
+  - Mutation resolvers (book seat, cancel reservation, update priority)
+  - Subscription resolvers over WebSocket for live seat state changes
+  - Batch mapping / `DataLoader` implementation to eliminate GraphQL N+1 problem
+  - GraphiQL interactive development playground
+- [ ] **Phase 6: REST Controllers, Live SSE Stream & Security**
   - REST API controllers with Jakarta Bean Validation
   - `EventStreamController` with `SseEmitter` real-time push
+  - Supabase OAuth2 / JWT stateless security filter chain
   - Centralized RFC 7807 `GlobalExceptionHandler`
-- [ ] **Phase 5: Automated Testing Suite**
-  - DSA algorithm unit tests
+  - OpenAPI 3 / Swagger UI interactive documentation
+- [ ] **Phase 7: Comprehensive Automated Testing Suite**
+  - DSA algorithm unit tests (Generic Red-Black Tree, Indexed Min-Heap)
   - Mockito service layer unit tests
-  - MockMvc API integration tests
-  - Multi-threaded concurrency race condition stress tests
-- [ ] **Phase 6: Modern UI & Cloud Containerization**
-  - Glassmorphism Single-Page Dashboard (`index.html`, `styles.css`, `app.js`)
-  - Multi-stage `Dockerfile` & Docker Compose
+  - MockMvc REST & GraphQlTester integration tests
+  - Redis caching & Redisson distributed locking tests
+  - Multi-threaded 100-thread concurrency & race condition stress tests
+- [ ] **Phase 8: Modern UI & Cloud Containerization**
+  - Glassmorphism Single-Page Dashboard (REST + GraphQL + SSE/WebSocket)
+  - Multi-stage `Dockerfile` & Docker Compose (App + PostgreSQL + Redis)
   - Production deployment to Fly.io / Render
 
 ---
