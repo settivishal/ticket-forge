@@ -20,5 +20,6 @@ USER appuser
 COPY --from=build --chown=appuser:appgroup /app/target/*.jar app.jar
 EXPOSE 8080
 
-ENV JAVA_OPTS="-XX:+UseZGC -XX:MaxRAMPercentage=75.0"
+# Lightweight JVM memory settings optimized for 512MB RAM containers
+ENV JAVA_OPTS="-XX:+UseSerialGC -Xms128m -Xmx256m -XX:MaxMetaspaceSize=128m -Xss512k"
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
