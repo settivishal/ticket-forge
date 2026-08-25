@@ -10,12 +10,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.CachingConfigurer;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
+import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -44,7 +47,7 @@ import java.util.Map;
 @Configuration
 @EnableCaching
 @Slf4j
-public class RedisConfig {
+public class RedisConfig implements CachingConfigurer {
 
     public static final String CACHE_SYSTEM_STATUS = "ticketforge:system_status";
     public static final String CACHE_SEATS = "ticketforge:seats";
@@ -100,7 +103,9 @@ public class RedisConfig {
                 clientConfig.useSsl();
             }
             clientConfig.commandTimeout(Duration.ofMillis(3000));
-            return new LettuceConnectionFactory(redisConfig, clientConfig.build());
+            var factory = new LettuceConnectionFactory(redisConfig, clientConfig.build());
+            factory.afterPropertiesSet();
+            return factory;
         }
 
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
@@ -115,13 +120,19 @@ public class RedisConfig {
             clientConfig.useSsl();
         }
         clientConfig.commandTimeout(Duration.ofMillis(3000));
-        return new LettuceConnectionFactory(config, clientConfig.build());
+        var factory = new LettuceConnectionFactory(config, clientConfig.build());
+        factory.afterPropertiesSet();
+        return factory;
     }
 
     @Bean
     public RedisTemplate<String, Object> redisTemplate(
-            RedisConnectionFactory connectionFactory,
+            @Autowired(required = false) RedisConnectionFactory connectionFactory,
             RedisSerializer<Object> redisJsonSerializer) {
+        if (connectionFactory == null) {
+            return null;
+        }
+
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
@@ -136,15 +147,19 @@ public class RedisConfig {
 
     @Bean
     @Primary
-    public CacheManager cacheManager(
-            RedisConnectionFactory connectionFactory,
-            RedisSerializer<Object> redisJsonSerializer) {
-
+    @Override
+    public CacheManager cacheManager() {
         if (!isRedisAvailable()) {
             return createInMemoryCacheManager();
         }
 
+        RedisConnectionFactory connectionFactory = redisConnectionFactory();
+        if (connectionFactory == null) {
+            return createInMemoryCacheManager();
+        }
+
         try {
+            RedisSerializer<Object> redisJsonSerializer = redisJsonSerializer(redisObjectMapper());
             RedisCacheConfiguration defaultCacheConfig = RedisCacheConfiguration.defaultCacheConfig()
                     .entryTtl(Duration.ofMinutes(5))
                     .disableCachingNullValues()
@@ -168,12 +183,37 @@ public class RedisConfig {
         }
     }
 
+    @Override
+    public CacheErrorHandler errorHandler() {
+        return new CacheErrorHandler() {
+            @Override
+            public void handleCacheGetError(RuntimeException exception, Cache cache, Object key) {
+                log.warn("Cache GET failure on key '{}' in cache '{}': {}. Falling back to source.", key, cache.getName(), exception.getMessage());
+            }
+
+            @Override
+            public void handleCachePutError(RuntimeException exception, Cache cache, Object key, Object value) {
+                log.warn("Cache PUT failure on key '{}' in cache '{}': {}. Proceeding.", key, cache.getName(), exception.getMessage());
+            }
+
+            @Override
+            public void handleCacheEvictError(RuntimeException exception, Cache cache, Object key) {
+                log.warn("Cache EVICT failure on key '{}' in cache '{}': {}. Proceeding.", key, cache.getName(), exception.getMessage());
+            }
+
+            @Override
+            public void handleCacheClearError(RuntimeException exception, Cache cache) {
+                log.warn("Cache CLEAR failure in cache '{}': {}. Proceeding.", cache.getName(), exception.getMessage());
+            }
+        };
+    }
+
     @Bean
     @ConditionalOnProperty(name = "ticketforge.redis.pubsub.enabled", havingValue = "true", matchIfMissing = false)
     public RedisMessageListenerContainer redisMessageListenerContainer(
-            RedisConnectionFactory connectionFactory,
+            @Autowired(required = false) RedisConnectionFactory connectionFactory,
             RedisEventSubscriber eventSubscriber) {
-        if (!isRedisAvailable()) {
+        if (!isRedisAvailable() || connectionFactory == null) {
             return null;
         }
         try {
