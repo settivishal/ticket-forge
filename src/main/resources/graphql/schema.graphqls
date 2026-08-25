@@ -1,0 +1,89 @@
+scalar DateTime
+scalar Long
+
+enum SeatStatus {
+    AVAILABLE
+    HELD
+    RESERVED
+}
+
+enum SeatTier {
+    STANDARD
+    VIP
+    COURTSIDE
+}
+
+enum WaitlistStatus {
+    WAITING
+    PROMOTED
+    CANCELLED
+}
+
+type Seat {
+    id: ID!
+    seatNumber: Int!
+    status: SeatStatus!
+    tier: SeatTier!
+    userId: String
+    occupantUserId: String
+}
+
+type Reservation {
+    id: ID!
+    userId: String!
+    seatNumber: Int!
+    tier: SeatTier!
+    reservedAt: DateTime!
+    expiresAt: DateTime
+    version: Int
+}
+
+type WaitlistEntry {
+    id: ID!
+    userId: String!
+    priority: Int!
+    timestamp: Long!
+    status: WaitlistStatus!
+    queuePosition: Int!
+}
+
+type SystemStatus {
+    totalSeats: Long!
+    availableSeats: Long!
+    heldSeats: Long!
+    reservedSeats: Long!
+    waitlistCount: Long!
+}
+
+type TicketEvent {
+    eventType: String!
+    seatNumber: Int
+    userId: String
+    message: String!
+    timestamp: DateTime!
+}
+
+type Query {
+    systemStatus: SystemStatus!
+    seats(status: SeatStatus, tier: SeatTier): [Seat!]!
+    seat(seatNumber: Int!): Seat
+    reservations: [Reservation!]!
+    reservation(userId: String!): Reservation
+    waitlist: [WaitlistEntry!]!
+}
+
+type Mutation {
+    initializeSeats(count: Int!): SystemStatus!
+    reserveSeat(userId: String!, priority: Int!): Reservation
+    holdSeat(userId: String!, priority: Int!, ttlSeconds: Int): Reservation
+    cancelReservation(seatNumber: Int!, userId: String!): Boolean!
+    exitWaitlist(userId: String!): Boolean!
+    updatePriority(userId: String!, priority: Int!): Boolean!
+    addSeats(count: Int!): SystemStatus!
+    releaseSeats(fromUserId: String!, toUserId: String!): [Int!]!
+}
+
+type Subscription {
+    seatEvents: TicketEvent!
+    systemStatusUpdates: SystemStatus!
+}
