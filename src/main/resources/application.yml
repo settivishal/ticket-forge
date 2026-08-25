@@ -6,8 +6,6 @@ spring:
   threads:
     virtual:
       enabled: true
-  cache:
-    type: redis
   data:
     redis:
       host: ${REDIS_HOST:localhost}

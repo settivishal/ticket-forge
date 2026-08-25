@@ -34,6 +34,9 @@ import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSeriali
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.RedisSerializer;
 
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.URI;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -63,6 +66,9 @@ public class RedisConfig {
 
     @Value("${spring.data.redis.ssl.enabled:false}")
     private boolean redisSsl;
+
+    @Value("${ticketforge.redis.enabled:auto}")
+    private String redisEnabled;
 
     @Bean
     public ObjectMapper redisObjectMapper() {
@@ -130,45 +136,59 @@ public class RedisConfig {
 
     @Bean
     @Primary
-    @ConditionalOnProperty(name = "spring.cache.type", havingValue = "redis", matchIfMissing = true)
-    public CacheManager redisCacheManager(
+    public CacheManager cacheManager(
             RedisConnectionFactory connectionFactory,
             RedisSerializer<Object> redisJsonSerializer) {
 
-        RedisCacheConfiguration defaultCacheConfig = RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(Duration.ofMinutes(5))
-                .disableCachingNullValues()
-                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(RedisSerializer.string()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(redisJsonSerializer));
+        if (!isRedisAvailable()) {
+            return createInMemoryCacheManager();
+        }
 
-        Map<String, RedisCacheConfiguration> cacheConfigurations = new HashMap<>();
-        cacheConfigurations.put(CACHE_SYSTEM_STATUS, defaultCacheConfig.entryTtl(Duration.ofSeconds(10)));
-        cacheConfigurations.put(CACHE_SEATS, defaultCacheConfig.entryTtl(Duration.ofSeconds(60)));
-        cacheConfigurations.put(CACHE_SEAT, defaultCacheConfig.entryTtl(Duration.ofSeconds(60)));
-        cacheConfigurations.put(CACHE_WAITLIST, defaultCacheConfig.entryTtl(Duration.ofSeconds(10)));
-        cacheConfigurations.put(CACHE_RESERVATIONS, defaultCacheConfig.entryTtl(Duration.ofSeconds(30)));
+        try {
+            RedisCacheConfiguration defaultCacheConfig = RedisCacheConfiguration.defaultCacheConfig()
+                    .entryTtl(Duration.ofMinutes(5))
+                    .disableCachingNullValues()
+                    .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(RedisSerializer.string()))
+                    .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(redisJsonSerializer));
 
-        return RedisCacheManager.builder(connectionFactory)
-                .cacheDefaults(defaultCacheConfig)
-                .withInitialCacheConfigurations(cacheConfigurations)
-                .build();
+            Map<String, RedisCacheConfiguration> cacheConfigurations = new HashMap<>();
+            cacheConfigurations.put(CACHE_SYSTEM_STATUS, defaultCacheConfig.entryTtl(Duration.ofSeconds(10)));
+            cacheConfigurations.put(CACHE_SEATS, defaultCacheConfig.entryTtl(Duration.ofSeconds(60)));
+            cacheConfigurations.put(CACHE_SEAT, defaultCacheConfig.entryTtl(Duration.ofSeconds(60)));
+            cacheConfigurations.put(CACHE_WAITLIST, defaultCacheConfig.entryTtl(Duration.ofSeconds(10)));
+            cacheConfigurations.put(CACHE_RESERVATIONS, defaultCacheConfig.entryTtl(Duration.ofSeconds(30)));
+
+            return RedisCacheManager.builder(connectionFactory)
+                    .cacheDefaults(defaultCacheConfig)
+                    .withInitialCacheConfigurations(cacheConfigurations)
+                    .build();
+        } catch (Exception e) {
+            log.warn("Failed to initialize RedisCacheManager, operating with In-Memory fallback: {}", e.getMessage());
+            return createInMemoryCacheManager();
+        }
     }
 
     @Bean
-    @ConditionalOnProperty(name = "spring.cache.type", havingValue = "redis", matchIfMissing = false)
+    @ConditionalOnProperty(name = "ticketforge.redis.pubsub.enabled", havingValue = "true", matchIfMissing = false)
     public RedisMessageListenerContainer redisMessageListenerContainer(
             RedisConnectionFactory connectionFactory,
             RedisEventSubscriber eventSubscriber) {
-        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
-        container.setConnectionFactory(connectionFactory);
-        container.addMessageListener(eventSubscriber, new ChannelTopic("ticketforge:events"));
-        return container;
+        if (!isRedisAvailable()) {
+            return null;
+        }
+        try {
+            RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+            container.setConnectionFactory(connectionFactory);
+            container.addMessageListener(eventSubscriber, new ChannelTopic("ticketforge:events"));
+            return container;
+        } catch (Exception e) {
+            log.warn("Could not start RedisMessageListenerContainer: {}", e.getMessage());
+            return null;
+        }
     }
 
-    @Bean
-    @ConditionalOnMissingBean(CacheManager.class)
-    public CacheManager fallbackCacheManager() {
-        log.info("Configuring In-Memory ConcurrentMapCacheManager fallback for local testing");
+    private CacheManager createInMemoryCacheManager() {
+        log.info("Using In-Memory ConcurrentMapCacheManager (zero network latency, non-blocking)");
         return new ConcurrentMapCacheManager(
                 CACHE_SYSTEM_STATUS, CACHE_SEATS, CACHE_SEAT, CACHE_WAITLIST, CACHE_RESERVATIONS
         );
@@ -177,6 +197,11 @@ public class RedisConfig {
     @Bean(destroyMethod = "shutdown")
     @ConditionalOnProperty(name = "ticketforge.redisson.enabled", havingValue = "true", matchIfMissing = true)
     public RedissonClient redissonClient() {
+        if (!isRedisAvailable()) {
+            log.info("Redis is offline. Redisson distributed locks will operate using local JVM ReentrantLock fallback.");
+            return null;
+        }
+
         Config config = new Config();
         String address;
         if (redisUrl != null && !redisUrl.isBlank()) {
@@ -191,10 +216,10 @@ public class RedisConfig {
         log.info("Configuring Redisson client connected to {}", address);
         var singleServer = config.useSingleServer()
                 .setAddress(address)
-                .setConnectTimeout(3000)
-                .setTimeout(3000)
-                .setRetryAttempts(2)
-                .setRetryInterval(1000);
+                .setConnectTimeout(2000)
+                .setTimeout(2000)
+                .setRetryAttempts(1)
+                .setRetryInterval(500);
 
         if (redisPassword != null && !redisPassword.isBlank()) {
             singleServer.setPassword(redisPassword);
@@ -203,8 +228,32 @@ public class RedisConfig {
         try {
             return Redisson.create(config);
         } catch (Exception e) {
-            log.warn("Could not connect to Redis at {}: {}. Redisson will initialize when Redis is reachable.", address, e.getMessage());
+            log.warn("Could not connect to Redis at {}: {}. Operating with local locking.", address, e.getMessage());
             return null;
+        }
+    }
+
+    private boolean isRedisAvailable() {
+        if ("false".equalsIgnoreCase(redisEnabled)) {
+            return false;
+        }
+        try {
+            String host = (redisHost != null && !redisHost.isBlank()) ? redisHost : "localhost";
+            int port = redisPort > 0 ? redisPort : 6379;
+            if (redisUrl != null && !redisUrl.isBlank()) {
+                URI uri = URI.create(redisUrl.replace("rediss://", "http://").replace("redis://", "http://"));
+                if (uri.getHost() != null) {
+                    host = uri.getHost();
+                    port = uri.getPort() > 0 ? uri.getPort() : (redisUrl.startsWith("rediss://") ? 6380 : 6379);
+                }
+            }
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress(host, port), 800);
+                return true;
+            }
+        } catch (Exception e) {
+            log.info("Redis is not reachable at {}:{}. Operating with In-Memory Caching & Local Locking.", redisHost, redisPort);
+            return false;
         }
     }
 }
