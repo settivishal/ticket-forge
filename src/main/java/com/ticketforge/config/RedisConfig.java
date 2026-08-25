@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.ticketforge.event.RedisEventSubscriber;
+import io.lettuce.core.RedisURI;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
@@ -19,15 +21,18 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
+import org.springframework.data.redis.connection.RedisConfiguration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisPassword;
+import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.RedisSerializer;
-
-import org.springframework.data.redis.listener.ChannelTopic;
-import org.springframework.data.redis.listener.RedisMessageListenerContainer;
-import com.ticketforge.event.RedisEventSubscriber;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -74,6 +79,37 @@ public class RedisConfig {
     @Bean
     public RedisSerializer<Object> redisJsonSerializer(ObjectMapper redisObjectMapper) {
         return new GenericJackson2JsonRedisSerializer(redisObjectMapper);
+    }
+
+    @Bean
+    public RedisConnectionFactory redisConnectionFactory() {
+        if (redisUrl != null && !redisUrl.isBlank()) {
+            String uriStr = redisUrl.startsWith("redis://") || redisUrl.startsWith("rediss://")
+                    ? redisUrl
+                    : (redisSsl ? "rediss://" : "redis://") + redisUrl;
+            RedisURI uri = RedisURI.create(uriStr);
+            RedisConfiguration redisConfig = LettuceConnectionFactory.createRedisConfiguration(uri);
+            LettuceClientConfiguration.LettuceClientConfigurationBuilder clientConfig = LettuceClientConfiguration.builder();
+            if (redisSsl || uriStr.startsWith("rediss://")) {
+                clientConfig.useSsl();
+            }
+            clientConfig.commandTimeout(Duration.ofMillis(3000));
+            return new LettuceConnectionFactory(redisConfig, clientConfig.build());
+        }
+
+        RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
+        config.setHostName(redisHost != null && !redisHost.isBlank() ? redisHost : "localhost");
+        config.setPort(redisPort > 0 ? redisPort : 6379);
+        if (redisPassword != null && !redisPassword.isBlank()) {
+            config.setPassword(RedisPassword.of(redisPassword));
+        }
+
+        LettuceClientConfiguration.LettuceClientConfigurationBuilder clientConfig = LettuceClientConfiguration.builder();
+        if (redisSsl) {
+            clientConfig.useSsl();
+        }
+        clientConfig.commandTimeout(Duration.ofMillis(3000));
+        return new LettuceConnectionFactory(config, clientConfig.build());
     }
 
     @Bean
