@@ -220,12 +220,12 @@ void testConcurrentSeatBookingNoDoubleBooking() throws InterruptedException {
   - Optimistic locking (`@Version`) & Pessimistic locking queries (`@Lock(PESSIMISTIC_WRITE)`)
   - Jakarta Bean Validation Request/Response Record DTOs
   - 14 `@DataJpaTest` automated integration tests
-- [ ] **Phase 3: Business Logic & In-Memory DSAs** *(Next)*
+- [x] **Phase 3: Business Logic & In-Memory DSAs** *(Completed)*
   - Generified `GenericRedBlackTree<K, V>` & Indexed `GenericMinHeap<T>`
   - `TicketForgeService` transactional operations & cascading re-allocations
-  - Time-to-Live (TTL) auto-expiry background scheduler
-  - Request idempotency caching
-- [ ] **Phase 4: REST Controllers, Live SSE Stream & Docs**
+  - Time-to-Live (TTL) auto-expiry background scheduler (`TicketHoldTtlScheduler`)
+  - 43 automated tests (including 100-thread multi-threaded concurrency race condition stress tests)
+- [ ] **Phase 4: REST Controllers, Live SSE Stream & Docs** *(Next)*
   - REST API controllers with Jakarta Bean Validation
   - `EventStreamController` with `SseEmitter` real-time push
   - Centralized RFC 7807 `GlobalExceptionHandler`
@@ -257,6 +257,9 @@ ticket-forge/
     │   │   ├── config/                      <-- OpenAPI & Async thread pool config
     │   │   │   ├── OpenApiConfig.java
     │   │   │   └── AsyncConfig.java
+    │   │   ├── dsa/                         <-- Generic Algorithmic In-Memory Matching Engine
+    │   │   │   ├── GenericMinHeap.java
+    │   │   │   └── GenericRedBlackTree.java
     │   │   ├── dto/                         <-- Record DTOs (Requests & Responses)
     │   │   │   ├── ApiResponse.java
     │   │   │   ├── ExpandSeatsRequest.java
@@ -268,6 +271,13 @@ ticket-forge/
     │   │   │   ├── SystemStatusResponse.java
     │   │   │   ├── UpdatePriorityRequest.java
     │   │   │   └── WaitlistResponse.java
+    │   │   ├── exception/                   <-- Domain Exceptions
+    │   │   │   ├── InvalidRequestException.java
+    │   │   │   ├── ReservationNotFoundException.java
+    │   │   │   ├── SeatNotFoundException.java
+    │   │   │   ├── TicketForgeException.java
+    │   │   │   ├── UserAlreadyInWaitlistException.java
+    │   │   │   └── UserAlreadyReservedException.java
     │   │   ├── model/                       <-- JPA Domain Entities & Status Enums
     │   │   │   ├── Reservation.java
     │   │   │   ├── Seat.java
@@ -281,10 +291,15 @@ ticket-forge/
     │   │   │   ├── SeatRepository.java
     │   │   │   ├── UserRepository.java
     │   │   │   └── WaitlistRepository.java
-    │   │   └── security/                    <-- Supabase OAuth2 / Security config
-    │   │       ├── SecurityConfig.java
-    │   │       ├── JwtAuthenticationConverter.java
-    │   │       └── TicketForgeUserPrincipal.java
+    │   │   ├── scheduler/                   <-- Background TTL Expiry & Promotion Tasks
+    │   │   │   └── TicketHoldTtlScheduler.java
+    │   │   ├── security/                    <-- Supabase OAuth2 / Security config
+    │   │   │   ├── SecurityConfig.java
+    │   │   │   ├── JwtAuthenticationConverter.java
+    │   │   │   └── TicketForgeUserPrincipal.java
+    │   │   └── service/                     <-- Core Business Logic & State Synchronization
+    │   │       ├── TicketForgeService.java
+    │   │       └── TicketForgeServiceImpl.java
     │   └── resources/
     │       ├── application.yml              <-- Shared settings & Actuator/OpenAPI
     │       ├── application-dev.yml          <-- Local H2 database profile
@@ -295,11 +310,19 @@ ticket-forge/
     └── test/
         └── java/com/ticketforge/
             ├── TicketForgeApplicationTests.java
-            └── repository/                  <-- Data JPA Integration Tests
-                ├── ReservationRepositoryTest.java
-                ├── SeatRepositoryTest.java
-                ├── UserRepositoryTest.java
-                └── WaitlistRepositoryTest.java
+            ├── dsa/                         <-- Custom DSA Unit Tests
+            │   ├── GenericMinHeapTest.java
+            │   └── GenericRedBlackTreeTest.java
+            ├── repository/                  <-- Data JPA Integration Tests
+            │   ├── ReservationRepositoryTest.java
+            │   ├── SeatRepositoryTest.java
+            │   ├── UserRepositoryTest.java
+            │   └── WaitlistRepositoryTest.java
+            ├── scheduler/                   <-- Scheduler Mockito Unit Tests
+            │   └── TicketHoldTtlSchedulerTest.java
+            └── service/                     <-- Service Layer & Concurrency Tests
+                ├── TicketForgeServiceConcurrencyTest.java
+                └── TicketForgeServiceTest.java
 ```
 
 ---
