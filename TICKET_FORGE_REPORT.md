@@ -700,7 +700,9 @@ ticket-forge/
 | :--- | :--- | :--- | :--- |
 | **Phase 1** | **Build & Config Foundation** | Supabase Auth Config, Actuator, OpenAPI 3, Multi-profile YAML | `pom.xml`, `application.yml`, Base Packages, Health Endpoint |
 | **Phase 2** | **JPA Data, Schema & Flyway** | Flyway `V1__...`, Optimistic Locking (`@Version`), DB Indexes | JPA Entities, Repositories, Flyway Migration scripts |
-| **Phase 3** | **Business Logic & DSAs** | Generic Min-Heap, Generic RB-Tree, TTL Scheduler, Idempotency | `TicketForgeService`, `ReservationExpiryScheduler`, In-Memory Engine |
-| **Phase 4** | **APIs, Events & Security** | Server-Sent Events (SSE), Swagger UI, Validation, RBAC Filters | REST Controllers, `EventStreamController`, `SecurityConfig` |
-| **Phase 5** | **Automated Testing Suite** | Concurrency Stress Tests, Mockito Unit Tests, MockMvc Tests | Algorithm Tests, Service Layer Tests, Race Condition Verification |
-| **Phase 6** | **UI & Cloud Deployment** | Real-Time SSE Visualizer, Glassmorphism Dashboard, Docker | `index.html`, `styles.css`, `app.js`, `Dockerfile`, Fly.io/Render deploy |
+| **Phase 3** | **Business Logic & DSAs** | Generic Min-Heap, Generic RB-Tree, TTL Scheduler, Idempotency | `TicketForgeService`, `TicketHoldTtlScheduler`, In-Memory Engine |
+| **Phase 4** | **Distributed Caching & Redis** | Redis Cache-Aside, Redisson Distributed Locks, Anti-Scalper Rate Limiting | `RedisConfig`, `@Cacheable` seat layout, `RLock` Concurrency, Rate Limiter |
+| **Phase 5** | **GraphQL Engine & Schema** | Schema-First GraphQL, Query/Mutation/Subscription Resolvers, DataLoader | `schema.graphqls`, `@QueryMapping`, `@MutationMapping`, `@SubscriptionMapping` |
+| **Phase 6** | **APIs, Events & Security** | Server-Sent Events (SSE), Swagger UI, Jakarta Validation, RBAC Filters | REST Controllers, `EventStreamController`, `SecurityConfig` |
+| **Phase 7** | **Automated Testing Suite** | Concurrency Stress Tests, Mockito Unit Tests, MockMvc & GraphQL Tests | Algorithm Tests, Service Layer Tests, 100-Thread Race Condition Tests |
+| **Phase 8** | **UI & Cloud Deployment** | Real-Time Visualizer, Glassmorphism Dashboard, Docker Compose | `index.html`, `styles.css`, `app.js`, `Dockerfile`, Docker Compose, Render Deploy |

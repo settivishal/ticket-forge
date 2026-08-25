@@ -1,6 +1,7 @@
 package com.ticketforge.repository;
 
 import com.ticketforge.model.Reservation;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,11 +14,17 @@ import java.util.Optional;
 @Repository
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
 
+    @EntityGraph(attributePaths = {"seat"})
     Optional<Reservation> findByUserId(String userId);
 
+    @EntityGraph(attributePaths = {"seat"})
     Optional<Reservation> findBySeat_SeatNumber(Integer seatNumber);
 
+    @EntityGraph(attributePaths = {"seat"})
     List<Reservation> findAllByOrderBySeat_SeatNumberAsc();
+
+    @Query("SELECT r FROM Reservation r JOIN FETCH r.seat")
+    List<Reservation> findAllWithSeat();
 
     void deleteBySeat_SeatNumber(Integer seatNumber);
 
