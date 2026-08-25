@@ -1,5 +1,6 @@
 package com.ticketforge.service;
 
+import com.ticketforge.config.RedisConfig;
 import com.ticketforge.dsa.GenericMinHeap;
 import com.ticketforge.dsa.GenericRedBlackTree;
 import com.ticketforge.dto.ReservationResponse;
@@ -24,6 +25,9 @@ import com.ticketforge.repository.WaitlistRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +58,13 @@ public class TicketForgeServiceImpl implements TicketForgeService {
     @PostConstruct
     @Override
     @Transactional(readOnly = true)
+    @Caching(evict = {
+            @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEATS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEAT, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_WAITLIST, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_RESERVATIONS, allEntries = true)
+    })
     public void syncFromDatabase() {
         log.info("Hydrating in-memory Red-Black Tree and Min-Heap structures from database...");
 
@@ -86,6 +97,13 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEATS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEAT, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_WAITLIST, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_RESERVATIONS, allEntries = true)
+    })
     public void initializeSeats(int seatCount) {
         if (seatCount <= 0) {
             throw new InvalidRequestException("Seat count must be greater than 0. Provided: " + seatCount);
@@ -121,12 +139,26 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEATS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEAT, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_WAITLIST, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_RESERVATIONS, allEntries = true)
+    })
     public ReservationResponse reserveSeat(String userId, int priority) {
         return processSeatReservation(userId, priority, null);
     }
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEATS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEAT, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_WAITLIST, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_RESERVATIONS, allEntries = true)
+    })
     public ReservationResponse holdSeat(String userId, int priority, int ttlSeconds) {
         if (ttlSeconds <= 0) {
             throw new InvalidRequestException("TTL seconds must be greater than 0");
@@ -184,6 +216,13 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEATS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEAT, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_WAITLIST, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_RESERVATIONS, allEntries = true)
+    })
     public void cancelReservation(int seatNumber, String userId) {
         GenericRedBlackTree.Node<String, Integer> node = reservationsTree.findNode(userId);
 
@@ -197,6 +236,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
         // Delete from database & in-memory tree
         reservationRepository.deleteByUserId(userId);
+        reservationRepository.flush();
         reservationsTree.delete(userId);
 
         Seat seat = seatRepository.findBySeatNumber(seatNumber)
@@ -210,6 +250,10 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_WAITLIST, allEntries = true)
+    })
     public boolean exitWaitlist(String userId) {
         if (!waitlistHeap.containsId(userId)) {
             log.warn("User {} is not in the waitlist", userId);
@@ -224,6 +268,9 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = RedisConfig.CACHE_WAITLIST, allEntries = true)
+    })
     public boolean updatePriority(String userId, int newPriority) {
         if (newPriority < 1 || newPriority > 5) {
             throw new InvalidRequestException("Priority must be between 1 and 5. Provided: " + newPriority);
@@ -249,6 +296,13 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEATS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEAT, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_WAITLIST, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_RESERVATIONS, allEntries = true)
+    })
     public void addSeats(int count) {
         if (count <= 0) {
             throw new InvalidRequestException("Seat addition count must be greater than 0");
@@ -281,6 +335,13 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEATS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEAT, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_WAITLIST, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_RESERVATIONS, allEntries = true)
+    })
     public List<Integer> releaseSeats(String fromUserId, String toUserId) {
         if (fromUserId == null || toUserId == null || fromUserId.compareTo(toUserId) > 0) {
             throw new InvalidRequestException("Invalid user range: fromUserId must be lexicographically <= toUserId");
@@ -303,6 +364,8 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             // Also ensure user is removed from waitlist if present
             exitWaitlist(uId);
         }
+
+        reservationRepository.flush();
 
         // Reallocate each freed seat to waiting users or return to available heap
         for (Integer seatNumber : releasedSeatNumbers) {
@@ -345,6 +408,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = RedisConfig.CACHE_SYSTEM_STATUS, key = "'status'")
     public SystemStatusResponse getSystemStatus() {
         long totalSeats = seatRepository.count();
         long availableSeats = seatRepository.countByStatus(SeatStatus.AVAILABLE);
@@ -357,6 +421,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = RedisConfig.CACHE_SEATS, key = "'all'")
     public List<SeatResponse> getAllSeats() {
         List<Seat> seats = seatRepository.findAllByOrderBySeatNumberAsc();
         List<Reservation> reservations = reservationRepository.findAll();
@@ -377,6 +442,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = RedisConfig.CACHE_RESERVATIONS, key = "'all'")
     public List<ReservationResponse> getAllReservations() {
         return reservationRepository.findAllByOrderBySeat_SeatNumberAsc().stream()
                 .map(this::mapToReservationResponse)
@@ -385,6 +451,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = RedisConfig.CACHE_WAITLIST, key = "'queue'")
     public List<WaitlistResponse> getWaitlist() {
         List<WaitlistEntry> sortedList = waitlistHeap.toSortedList();
         List<WaitlistResponse> responses = new ArrayList<>(sortedList.size());
@@ -406,6 +473,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = RedisConfig.CACHE_SEAT, key = "#seatNumber")
     public SeatResponse getSeatByNumber(int seatNumber) {
         Seat seat = seatRepository.findBySeatNumber(seatNumber)
                 .orElseThrow(() -> new SeatNotFoundException("Seat number " + seatNumber + " not found"));
