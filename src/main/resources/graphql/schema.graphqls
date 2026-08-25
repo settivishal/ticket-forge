@@ -35,7 +35,6 @@ type Reservation {
     tier: SeatTier!
     reservedAt: DateTime!
     expiresAt: DateTime
-    version: Int
 }
 
 type WaitlistEntry {
