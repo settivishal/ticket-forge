@@ -35,8 +35,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public Static Resources & Web UI
                         .requestMatchers("/", "/index.html", "/styles.css", "/app.js", "/*.ico", "/static/**").permitAll()
-                        // Public Swagger UI & OpenAPI docs
-                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                        // Public Swagger UI, OpenAPI docs & GraphiQL IDE
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/graphiql/**", "/graphql/**").permitAll()
                         // Public Health & Info Actuator endpoints
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         // Dev H2 Console
