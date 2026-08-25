@@ -36,6 +36,12 @@ springdoc:
     tags-sorter: alpha
     display-request-duration: true
 
+# TicketForge Engine Settings
+ticketforge:
+  ttl:
+    cleanup-interval-ms: 5000
+    default-hold-seconds: 300
+
 # Logging Configuration
 logging:
   pattern:
@@ -43,3 +49,4 @@ logging:
   level:
     root: INFO
     com.ticketforge: INFO
+
