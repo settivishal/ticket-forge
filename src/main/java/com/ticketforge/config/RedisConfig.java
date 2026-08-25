@@ -73,8 +73,7 @@ public class RedisConfig implements CachingConfigurer {
     @Value("${ticketforge.redis.enabled:auto}")
     private String redisEnabled;
 
-    @Bean
-    public ObjectMapper redisObjectMapper() {
+    private ObjectMapper createRedisObjectMapper() {
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
         mapper.activateDefaultTyping(
@@ -86,8 +85,8 @@ public class RedisConfig implements CachingConfigurer {
     }
 
     @Bean
-    public RedisSerializer<Object> redisJsonSerializer(ObjectMapper redisObjectMapper) {
-        return new GenericJackson2JsonRedisSerializer(redisObjectMapper);
+    public RedisSerializer<Object> redisJsonSerializer() {
+        return new GenericJackson2JsonRedisSerializer(createRedisObjectMapper());
     }
 
     @Bean
@@ -159,7 +158,7 @@ public class RedisConfig implements CachingConfigurer {
         }
 
         try {
-            RedisSerializer<Object> redisJsonSerializer = redisJsonSerializer(redisObjectMapper());
+            RedisSerializer<Object> redisJsonSerializer = redisJsonSerializer();
             RedisCacheConfiguration defaultCacheConfig = RedisCacheConfiguration.defaultCacheConfig()
                     .entryTtl(Duration.ofMinutes(5))
                     .disableCachingNullValues()

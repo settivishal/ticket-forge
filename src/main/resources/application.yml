@@ -12,6 +12,17 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
       timeout: 3000ms
+  graphql:
+    graphiql:
+      enabled: true
+      path: /graphiql
+    websocket:
+      path: /graphql
+    schema:
+      printer:
+        enabled: true
+      inspection:
+        enabled: true
 
 server:
   port: ${PORT:8080}
