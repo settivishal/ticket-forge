@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="TicketForge - Ultra-High Concurrency Flash-Sale Ticketing Engine with In-Memory Red-Black Tree, Indexed Min-Heap & Real-Time SSE Stream">
+    <title>TicketForge — Ultra-High Concurrency Flash-Sale Ticketing Engine</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+</head>
+<body>
+    <!-- Background Ambient Light Glows -->
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+    <div class="ambient-glow glow-3"></div>
+
+    <div class="app-container">
+        <!-- Top Navigation Bar -->
+        <header class="navbar glass-card">
+            <div class="nav-brand">
+                <div class="brand-logo">
+                    <span class="lightning-icon">⚡</span>
+                </div>
+                <div class="brand-text">
+                    <h1 class="brand-title">TicketForge</h1>
+                    <span class="brand-subtitle">High-Concurrency Flash-Sale Engine</span>
+                </div>
+            </div>
+
+            <!-- Real-Time SSE Connection Status -->
+            <div class="nav-status">
+                <div id="sseStatusBadge" class="status-pill connected">
+                    <span class="pulse-dot"></span>
+                    <span id="sseStatusText">SSE Stream Live</span>
+                </div>
+            </div>
+
+            <!-- Header Quick Actions & Auth Role -->
+            <div class="nav-actions">
+                <div class="auth-selector-wrapper">
+                    <label for="roleSelector" class="auth-label">Active Role:</label>
+                    <select id="roleSelector" class="custom-select" aria-label="Select Active User Role">
+                        <option value="dev-customer">👤 Customer (dev-customer)</option>
+                        <option value="dev-vip">⭐ VIP Customer (Priority 3)</option>
+                        <option value="dev-admin">👑 Admin (dev-admin)</option>
+                    </select>
+                </div>
+
+                <div class="nav-links">
+                    <a href="/swagger-ui.html" target="_blank" class="nav-link-btn" title="OpenAPI 3 Swagger UI" id="btnSwagger">
+                        <span>📑 Swagger UI</span>
+                    </a>
+                    <a href="/graphiql" target="_blank" class="nav-link-btn" title="GraphiQL Interactive IDE" id="btnGraphiql">
+                        <span>🔮 GraphiQL</span>
+                    </a>
+                    <a href="/actuator/health" target="_blank" class="nav-link-btn" title="System Health Actuator" id="btnHealth">
+                        <span>💓 Health</span>
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- KPI Metrics Grid -->
+        <section class="metrics-section" aria-label="Real-time Venue Metrics">
+            <div class="metrics-grid">
+                <div class="metric-card glass-card">
+                    <div class="metric-header">
+                        <span class="metric-label">TOTAL CAPACITY</span>
+                        <span class="metric-icon">🏟️</span>
+                    </div>
+                    <div class="metric-value-row">
+                        <span id="statTotalSeats" class="metric-value">0</span>
+                        <span class="metric-unit">seats</span>
+                    </div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">Engine Max Capacity</span>
+                    </div>
+                </div>
+
+                <div class="metric-card glass-card green-accent">
+                    <div class="metric-header">
+                        <span class="metric-label">AVAILABLE SEATS</span>
+                        <span class="metric-icon">🟢</span>
+                    </div>
+                    <div class="metric-value-row">
+                        <span id="statAvailableSeats" class="metric-value green">0</span>
+                        <span class="metric-unit">ready to book</span>
+                    </div>
+                    <div class="metric-footer">
+                        <span id="statAvailablePct" class="metric-subtext">0% inventory available</span>
+                    </div>
+                </div>
+
+                <div class="metric-card glass-card purple-accent">
+                    <div class="metric-header">
+                        <span class="metric-label">RESERVED & HELD</span>
+                        <span class="metric-icon">🎟️</span>
+                    </div>
+                    <div class="metric-value-row">
+                        <span id="statReservedSeats" class="metric-value purple">0</span>
+                        <span class="metric-divider">/</span>
+                        <span id="statHeldSeats" class="metric-value amber">0</span>
+                    </div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">Reserved (Purple) &middot; Held (Amber)</span>
+                    </div>
+                </div>
+
+                <div class="metric-card glass-card orange-accent">
+                    <div class="metric-header">
+                        <span class="metric-label">PRIORITY WAITLIST</span>
+                        <span class="metric-icon">⏳</span>
+                    </div>
+                    <div class="metric-value-row">
+                        <span id="statWaitlistCount" class="metric-value orange">0</span>
+                        <span class="metric-unit">in queue</span>
+                    </div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">Indexed Min-Heap O(log N)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Venue Occupancy Progress Bar -->
+            <div class="occupancy-container glass-card">
+                <div class="occupancy-header">
+                    <span class="occupancy-title">Live Arena Occupancy Distribution</span>
+                    <span id="occupancyRate" class="occupancy-rate">0% Booked</span>
+                </div>
+                <div class="progress-track">
+                    <div id="barReserved" class="progress-bar bar-reserved" style="width: 0%" title="Reserved Seats"></div>
+                    <div id="barHeld" class="progress-bar bar-held" style="width: 0%" title="Held Seats (TTL)"></div>
+                    <div id="barAvailable" class="progress-bar bar-available" style="width: 100%" title="Available Seats"></div>
+                </div>
+                <div class="occupancy-legend">
+                    <span class="legend-item"><span class="legend-dot dot-reserved"></span> Reserved</span>
+                    <span class="legend-item"><span class="legend-dot dot-held"></span> Held (Active TTL)</span>
+                    <span class="legend-item"><span class="legend-dot dot-available"></span> Available</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Dashboard Split: Seat Map & Action Controls -->
+        <main class="dashboard-grid">
+            <!-- Left Side: Interactive Seat Map -->
+            <section class="seat-map-section glass-card" aria-label="Interactive Seat Map">
+                <div class="section-header">
+                    <div class="section-title-group">
+                        <h2 class="section-title">🏟️ Live Arena Seat Map</h2>
+                        <span class="section-desc">Interactive 2D visualization synced with in-memory Red-Black Tree</span>
+                    </div>
+                    <div class="seat-map-controls">
+                        <button id="btnRefreshSeats" class="btn-secondary-sm" title="Refresh Seat Map">
+                            <span>🔄 Sync</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Arena Stage Representation -->
+                <div class="arena-stage">
+                    <div class="stage-banner">STAGE &middot; CENTER ARENA</div>
+                </div>
+
+                <!-- Seat Grid Container -->
+                <div id="seatGrid" class="seat-grid">
+                    <div class="loading-spinner-container">
+                        <div class="spinner"></div>
+                        <p>Loading arena layout...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Side: Action Control Panels & Live Event Feed -->
+            <section class="controls-and-feed-section">
+                <!-- Action Tabs Panel -->
+                <div class="action-panel glass-card">
+                    <div class="tab-headers" role="tablist">
+                        <button class="tab-btn active" data-tab="bookingTab" id="tabBooking" role="tab">🎟️ Booking</button>
+                        <button class="tab-btn" data-tab="waitlistTab" id="tabWaitlist" role="tab">📋 Waitlist (<span id="tabWaitlistBadge">0</span>)</button>
+                        <button class="tab-btn" data-tab="adminTab" id="tabAdmin" role="tab">👑 Admin Controls</button>
+                        <button class="tab-btn" data-tab="graphqlTab" id="tabGraphql" role="tab">🔮 GraphQL</button>
+                    </div>
+
+                    <!-- Tab 1: Booking & Hold -->
+                    <div id="bookingTab" class="tab-content active" role="tabpanel">
+                        <form id="bookingForm" class="action-form">
+                            <div class="form-group">
+                                <label for="inputUserId">User ID / Handle</label>
+                                <input type="text" id="inputUserId" class="custom-input" value="usr_fan_101" required placeholder="e.g. usr_alex">
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group half">
+                                    <label for="selectPriority">Priority Tier</label>
+                                    <select id="selectPriority" class="custom-select">
+                                        <option value="1">Tier 1 — Standard</option>
+                                        <option value="2">Tier 2 — Premium</option>
+                                        <option value="3" selected>Tier 3 — VIP Pass</option>
+                                    </select>
+                                </div>
+                                <div class="form-group half">
+                                    <label for="holdTtlInput">Hold TTL (Seconds)</label>
+                                    <input type="number" id="holdTtlInput" class="custom-input" value="60" min="5" max="300">
+                                </div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="button" id="btnReserveSeat" class="btn-primary">
+                                    <span>⚡ Instant Reserve Seat</span>
+                                </button>
+                                <button type="button" id="btnHoldSeat" class="btn-secondary">
+                                    <span>⏱️ Hold Seat (TTL)</span>
+                                </button>
+                            </div>
+
+                            <div class="burst-test-container">
+                                <button type="button" id="btnFlashBurst" class="btn-accent-burst">
+                                    <span>🔥 Simulate Flash-Sale Burst (10 Parallel Users)</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Tab 2: Waitlist Queue Manager -->
+                    <div id="waitlistTab" class="tab-content" role="tabpanel">
+                        <div class="waitlist-header">
+                            <span class="waitlist-title">Live Priority Queue (Indexed Min-Heap)</span>
+                            <button id="btnRefreshWaitlist" class="btn-secondary-sm">Refresh</button>
+                        </div>
+                        <div id="waitlistContainer" class="waitlist-table-wrapper">
+                            <p class="empty-state">No users currently in waitlist.</p>
+                        </div>
+                    </div>
+
+                    <!-- Tab 3: Admin Controls -->
+                    <div id="adminTab" class="tab-content" role="tabpanel">
+                        <div class="admin-grid">
+                            <div class="admin-card">
+                                <h3>Initialize Venue</h3>
+                                <p>Resets all existing inventory and initializes $N$ available seats.</p>
+                                <div class="admin-action-row">
+                                    <input type="number" id="adminInitSeatsInput" class="custom-input" value="50" min="1" max="500">
+                                    <button type="button" id="btnAdminInitialize" class="btn-danger">
+                                        <span>Reset Venue</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="admin-card">
+                                <h3>Expand Capacity</h3>
+                                <p>Adds $N$ new seats. Auto-fulfills waiting customers immediately.</p>
+                                <div class="admin-action-row">
+                                    <input type="number" id="adminExpandSeatsInput" class="custom-input" value="10" min="1" max="100">
+                                    <button type="button" id="btnAdminExpand" class="btn-primary">
+                                        <span>+ Add Seats</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="admin-card">
+                                <h3>Release Seat Range</h3>
+                                <p>Batch releases reservations from user range $[u_1, u_2]$.</p>
+                                <div class="admin-action-row">
+                                    <input type="text" id="adminReleaseFrom" class="custom-input" placeholder="From User (e.g. usr_1)">
+                                    <input type="text" id="adminReleaseTo" class="custom-input" placeholder="To User (e.g. usr_5)">
+                                    <button type="button" id="btnAdminReleaseRange" class="btn-secondary">
+                                        <span>Release</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 4: GraphQL Explorer -->
+                    <div id="graphqlTab" class="tab-content" role="tabpanel">
+                        <div class="graphql-actions-grid">
+                            <button type="button" class="btn-gql" id="btnGqlSystemStatus">📊 Query System Status</button>
+                            <button type="button" class="btn-gql" id="btnGqlSeats">💺 Query All Seats</button>
+                            <button type="button" class="btn-gql" id="btnGqlWaitlist">📋 Query Waitlist</button>
+                        </div>
+                        <div class="gql-response-container">
+                            <label>GraphQL JSON Response:</label>
+                            <pre id="gqlOutput" class="code-output">// Execute a GraphQL query above...</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Server-Sent Events (SSE) Terminal Feed -->
+                <div class="stream-panel glass-card">
+                    <div class="stream-header">
+                        <div class="stream-title-group">
+                            <span class="terminal-icon">&gt;_</span>
+                            <span class="stream-title">Live Real-Time SSE Activity Stream</span>
+                        </div>
+                        <div class="stream-controls">
+                            <button id="btnClearLog" class="btn-secondary-xs">Clear Log</button>
+                        </div>
+                    </div>
+                    <div id="eventFeed" class="event-feed">
+                        <div class="event-entry system-msg">
+                            <span class="event-time">[INIT]</span>
+                            <span class="event-msg">Connecting to live SSE EventSource stream at /api/v1/events/stream...</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Seat Details Quick Modal -->
+        <div id="seatModal" class="modal-overlay hidden">
+            <div class="modal-card glass-card">
+                <div class="modal-header">
+                    <h3 id="modalSeatTitle">Seat Details</h3>
+                    <button id="btnCloseModal" class="modal-close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-info-row">
+                        <span class="modal-info-label">Seat Number:</span>
+                        <span id="modalSeatNumber" class="modal-info-val">#1</span>
+                    </div>
+                    <div class="modal-info-row">
+                        <span class="modal-info-label">Tier:</span>
+                        <span id="modalSeatTier" class="badge-tier">STANDARD</span>
+                    </div>
+                    <div class="modal-info-row">
+                        <span class="modal-info-label">Status:</span>
+                        <span id="modalSeatStatus" class="badge-status">AVAILABLE</span>
+                    </div>
+                    <div class="modal-info-row" id="modalOccupantRow">
+                        <span class="modal-info-label">Occupant:</span>
+                        <span id="modalSeatOccupant" class="modal-info-val">-</span>
+                    </div>
+                </div>
+                <div class="modal-actions" id="modalActionButtons">
+                    <!-- Dynamic modal buttons injected by app.js -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>TicketForge &copy; 2026 &middot; High-Concurrency Flash-Sale Engine &middot; Java 21 LTS &middot; Spring Boot 3.3 &middot; Virtual Threads &middot; Redis &middot; GraphQL &middot; SSE</p>
+        </footer>
+    </div>
+
+    <!-- Application Javascript Logic -->
+    <script src="app.js"></script>
+</body>
+</html>
