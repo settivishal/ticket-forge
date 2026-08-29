@@ -25,8 +25,15 @@ public class SecurityConfig {
 
     private final JwtAuthenticationConverter jwtAuthenticationConverter;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private DevAuthenticationFilter devAuthenticationFilter;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        if (devAuthenticationFilter != null) {
+            http.addFilterBefore(devAuthenticationFilter, org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class);
+        }
+
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)

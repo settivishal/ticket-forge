@@ -86,52 +86,125 @@ Once the application starts on port `8080`:
 
 ---
 
-## 🔌 API Summary
+## 🔌 API Reference & Specifications
 
 ### 📡 RESTful API Endpoints (`/api/v1`)
 
-| Endpoint | Method | Role | Purpose |
-| :--- | :---: | :---: | :--- |
-| `/api/v1/seats/availability` | `GET` | Public | Real-time seat availability and waitlist depth |
-| `/api/v1/seats` | `GET` | Authenticated | List all seats with current statuses and tiers |
-| `/api/v1/seats/{seatNumber}` | `GET` | Authenticated | Get details of a specific seat |
-| `/api/v1/events/stream` | `GET` | Public | Server-Sent Events (SSE) live push stream |
-| `/api/v1/reservations` | `POST` | Customer | Reserve a seat or enter priority waitlist |
-| `/api/v1/reservations/{seatNumber}` | `DELETE` | Customer / Admin | Cancel reservation & auto-promote waitlist |
-| `/api/v1/reservations` | `GET` | Customer / Admin | List all active reservations |
-| `/api/v1/reservations/user/{userId}` | `GET` | Customer / Admin | Look up reservation by user ID |
-| `/api/v1/waitlist` | `GET` | Customer / Admin | Inspect active priority waitlist queue |
-| `/api/v1/waitlist/{userId}` | `PATCH` | Customer / Admin | Update priority tier level in waitlist |
-| `/api/v1/waitlist/{userId}` | `DELETE` | Customer / Admin | Leave waitlist queue |
-| `/api/v1/seats/initialize` | `POST` | **Admin Only** | Initialize venue seat capacity |
-| `/api/v1/seats/expand` | `POST` | **Admin Only** | Dynamically expand venue seat capacity |
-| `/api/v1/reservations/release-range` | `POST` | **Admin Only** | Batch cancel user ID range $[u_1, u_2]$ |
+| Method & Endpoint | Role | Request Parameters / Body | Response Payload | HTTP Status |
+| :--- | :---: | :--- | :--- | :---: |
+| **`GET /api/v1/seats/availability`** | Public | _None_ | `ApiResponse<SystemStatusResponse>` | `200 OK` |
+| **`GET /api/v1/seats`** | Authenticated | _None_ | `ApiResponse<List<SeatResponse>>` | `200 OK` |
+| **`GET /api/v1/seats/{seatNumber}`** | Authenticated | Path: `seatNumber: Integer` | `ApiResponse<SeatResponse>` | `200 OK` |
+| **`POST /api/v1/seats/initialize`** | **Admin Only** | Body: `{"seatCount": 100}` | `ApiResponse<SystemStatusResponse>` | `200 OK` |
+| **`POST /api/v1/seats/expand`** | **Admin Only** | Body: `{"additionalCount": 20}` | `ApiResponse<SystemStatusResponse>` | `200 OK` |
+| **`POST /api/v1/reservations`** | Customer | Body: `{"userId": "usr_101", "priority": 3}` | `ApiResponse<ReservationResponse>` | `201 Created` / `202 Accepted` |
+| **`DELETE /api/v1/reservations/{seatNumber}`** | Customer / Admin | Path: `seatNumber`, Query: `?userId=usr_101` | `ApiResponse<Void>` | `200 OK` |
+| **`GET /api/v1/reservations`** | Customer / Admin | _None_ | `ApiResponse<List<ReservationResponse>>` | `200 OK` |
+| **`GET /api/v1/reservations/user/{userId}`** | Customer / Admin | Path: `userId: String` | `ApiResponse<ReservationResponse>` | `200 OK` |
+| **`POST /api/v1/reservations/release-range`** | **Admin Only** | Body: `{"fromUserId": "usr_10", "toUserId": "usr_50"}` | `ApiResponse<List<Integer>>` | `200 OK` |
+| **`GET /api/v1/waitlist`** | Customer / Admin | _None_ | `ApiResponse<List<WaitlistResponse>>` | `200 OK` |
+| **`PATCH /api/v1/waitlist/{userId}`** | Customer / Admin | Path: `userId`, Body: `{"newPriority": 3}` | `ApiResponse<Void>` | `200 OK` |
+| **`DELETE /api/v1/waitlist/{userId}`** | Customer / Admin | Path: `userId: String` | `ApiResponse<Void>` | `200 OK` |
+| **`GET /api/v1/events/stream`** | Public | _None_ (`Accept: text/event-stream`) | Server-Sent Events (SSE) Stream | `200 OK` |
 
-### 🔮 GraphQL Endpoint (`/graphql`)
+#### 📝 Example REST Request & Response Payloads
+
+##### 1. Reserve Seat (`POST /api/v1/reservations`)
+* **Request:**
+  ```json
+  {
+    "userId": "usr_402",
+    "priority": 3
+  }
+  ```
+* **Success Response (`201 Created`):**
+  ```json
+  {
+    "success": true,
+    "message": "Seat 14 successfully reserved",
+    "data": {
+      "id": 14,
+      "seatNumber": 14,
+      "userId": "usr_402",
+      "status": "RESERVED",
+      "reservedAt": "2026-08-28T22:30:00Z"
+    },
+    "timestamp": "2026-08-28T22:30:00.123Z"
+  }
+  ```
+* **Full Capacity Response (`202 Accepted`):**
+  ```json
+  {
+    "success": true,
+    "message": "Venue at full capacity. User usr_402 added to priority waitlist",
+    "data": null,
+    "timestamp": "2026-08-28T22:30:00.123Z"
+  }
+  ```
+
+##### 2. Venue Availability (`GET /api/v1/seats/availability`)
+* **Response (`200 OK`):**
+  ```json
+  {
+    "success": true,
+    "message": "System status retrieved successfully",
+    "data": {
+      "totalSeats": 100,
+      "availableSeats": 18,
+      "heldSeats": 2,
+      "reservedSeats": 80,
+      "waitlistCount": 12
+    },
+    "timestamp": "2026-08-28T22:30:00.123Z"
+  }
+  ```
+
+##### 3. Standard RFC 7807 Error Response (e.g. `409 Conflict`)
+```json
+{
+  "type": "https://ticketforge.com/errors/user-already-reserved",
+  "title": "User Already Has Reservation",
+  "status": 409,
+  "detail": "User 'usr_402' already holds active reservation for Seat 14",
+  "instance": "/api/v1/reservations",
+  "timestamp": "2026-08-28T22:30:00.123Z"
+}
+```
+
+---
+
+### 🔮 GraphQL API Reference (`/graphql`)
+
+Interactive development console accessible at: **[http://localhost:8080/graphiql](http://localhost:8080/graphiql)**
 
 ```graphql
-# Example Query: Fetch available seats and system status
-query {
+# 1. Fetch Venue Seat Layout & System Metrics
+query GetVenueStatus {
   systemStatus {
     totalSeats
     availableSeats
     reservedSeats
     waitlistCount
   }
-}
-
-# Example Mutation: Reserve a seat
-mutation {
-  reserveSeat(userId: "usr_101", priority: 3) {
-    id
+  seats(status: AVAILABLE) {
     seatNumber
-    userId
+    tier
     status
   }
 }
 
-# Example Subscription: Live seat event updates
-subscription {
+# 2. Reserve a Seat (or Join Waitlist)
+mutation BookTicket {
+  reserveSeat(userId: "usr_101", priority: 3) {
+    seatNumber
+    userId
+    status
+    reservedAt
+  }
+}
+
+# 3. Live WebSocket Subscription for Real-Time Event Stream
+subscription WatchSeatEvents {
   seatEvents {
     eventType
     seatNumber
