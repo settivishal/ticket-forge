@@ -225,26 +225,26 @@ void testConcurrentSeatBookingNoDoubleBooking() throws InterruptedException {
   - `TicketForgeService` transactional operations & cascading re-allocations
   - Time-to-Live (TTL) auto-expiry background scheduler (`TicketHoldTtlScheduler`)
   - 43 automated tests (including 100-thread multi-threaded concurrency race condition stress tests)
-- [ ] **Phase 4: Distributed Caching & Redis Integration** *(Next)*
+- [x] **Phase 4: Distributed Caching & Redis Integration** *(Completed)*
   - `spring-boot-starter-data-redis` & Redisson client integration
   - Redis cache-aside layer for seat availability & venue layout (`@Cacheable`, `@CacheEvict`)
-  - Redisson distributed locks (`RLock`) for multi-instance cluster-safe concurrency
+  - Redisson distributed locks (`RLock`) with zero-latency local fallback
   - Redis token-bucket rate limiting to block ticketing bots / scalpers
   - Redis Pub/Sub for cross-instance real-time event broadcasting
-- [ ] **Phase 5: GraphQL Engine & Schema Architecture**
+- [x] **Phase 5: GraphQL Engine & Schema Architecture** *(Completed)*
   - `spring-boot-starter-graphql` schema-first architecture (`schema.graphqls`)
   - Query resolvers (flexible seat maps, waitlist positions, system metrics)
   - Mutation resolvers (book seat, cancel reservation, update priority)
-  - Subscription resolvers over WebSocket for live seat state changes
+  - Subscription resolvers over WebSocket (`/graphql`) for live seat state changes
   - Batch mapping / `DataLoader` implementation to eliminate GraphQL N+1 problem
-  - GraphiQL interactive development playground
-- [ ] **Phase 6: REST Controllers, Live SSE Stream & Security**
-  - REST API controllers with Jakarta Bean Validation
-  - `EventStreamController` with `SseEmitter` real-time push
-  - Supabase OAuth2 / JWT stateless security filter chain
-  - Centralized RFC 7807 `GlobalExceptionHandler`
-  - OpenAPI 3 / Swagger UI interactive documentation
-- [ ] **Phase 7: Comprehensive Automated Testing Suite**
+  - GraphiQL interactive development playground (`/graphiql`)
+- [x] **Phase 6: REST Controllers, Live SSE Stream & Security** *(Completed)*
+  - REST API controllers with Jakarta Bean Validation (`SeatController`, `ReservationController`, `WaitlistController`)
+  - `EventStreamController` & `SseEmitterManager` with real-time SSE push & heartbeat pings
+  - Stateless Supabase OAuth2 / JWT security filter chain with RBAC routes
+  - Centralized RFC 7807 `GlobalExceptionHandler` with standardized `ProblemDetail` responses
+  - 95 automated unit, concurrency, security, and MockMvc integration tests
+- [ ] **Phase 7: Comprehensive Automated Testing Suite** *(Next)*
   - DSA algorithm unit tests (Generic Red-Black Tree, Indexed Min-Heap)
   - Mockito service layer unit tests
   - MockMvc REST & GraphQlTester integration tests
@@ -270,10 +270,20 @@ ticket-forge/
     ├── main/
     │   ├── java/com/ticketforge/
     │   │   ├── TicketForgeApplication.java  <-- Main Spring Boot entrypoint
-    │   │   ├── config/                      <-- OpenAPI & Async thread pool config
+    │   │   ├── concurrency/                 <-- Distributed & Local Locking
+    │   │   │   └── DistributedLockManager.java
+    │   │   ├── config/                      <-- Config (OpenAPI, Async, Redis, GraphQL)
+    │   │   │   ├── AsyncConfig.java
+    │   │   │   ├── GraphQlConfig.java
     │   │   │   ├── OpenApiConfig.java
-    │   │   │   └── AsyncConfig.java
-    │   │   ├── dsa/                         <-- Generic Algorithmic In-Memory Matching Engine
+    │   │   │   └── RedisConfig.java
+    │   │   ├── controller/                  <-- Spring MVC REST & SSE Stream Controllers
+    │   │   │   ├── EventStreamController.java
+    │   │   │   ├── ReservationController.java
+    │   │   │   ├── SeatController.java
+    │   │   │   ├── SseEmitterManager.java
+    │   │   │   └── WaitlistController.java
+    │   │   ├── dsa/                         <-- Generic Algorithmic In-Memory Engine
     │   │   │   ├── GenericMinHeap.java
     │   │   │   └── GenericRedBlackTree.java
     │   │   ├── dto/                         <-- Record DTOs (Requests & Responses)
@@ -287,13 +297,26 @@ ticket-forge/
     │   │   │   ├── SystemStatusResponse.java
     │   │   │   ├── UpdatePriorityRequest.java
     │   │   │   └── WaitlistResponse.java
-    │   │   ├── exception/                   <-- Domain Exceptions
+    │   │   ├── event/                       <-- Domain Event Bus (Pub/Sub)
+    │   │   │   ├── RedisEventPublisher.java
+    │   │   │   ├── RedisEventSubscriber.java
+    │   │   │   └── TicketForgeEvent.java
+    │   │   ├── exception/                   <-- RFC 7807 Exception Handlers
+    │   │   │   ├── GlobalExceptionHandler.java
     │   │   │   ├── InvalidRequestException.java
+    │   │   │   ├── RateLimitExceededException.java
     │   │   │   ├── ReservationNotFoundException.java
     │   │   │   ├── SeatNotFoundException.java
     │   │   │   ├── TicketForgeException.java
     │   │   │   ├── UserAlreadyInWaitlistException.java
     │   │   │   └── UserAlreadyReservedException.java
+    │   │   ├── graphql/                     <-- GraphQL Query, Mutation & Subscription Resolvers
+    │   │   │   ├── GraphQlExceptionResolver.java
+    │   │   │   ├── ReservationGraphQLController.java
+    │   │   │   ├── SeatGraphQLController.java
+    │   │   │   ├── SystemStatusGraphQLController.java
+    │   │   │   ├── TicketSubscriptionController.java
+    │   │   │   └── WaitlistGraphQLController.java
     │   │   ├── model/                       <-- JPA Domain Entities & Status Enums
     │   │   │   ├── Reservation.java
     │   │   │   ├── Seat.java
@@ -302,41 +325,63 @@ ticket-forge/
     │   │   │   ├── User.java
     │   │   │   ├── WaitlistEntry.java
     │   │   │   └── WaitlistStatus.java
+    │   │   ├── ratelimit/                   <-- Anti-Bot Rate Limiter
+    │   │   │   └── RedisRateLimiterService.java
     │   │   ├── repository/                  <-- Spring Data JPA Repositories
     │   │   │   ├── ReservationRepository.java
     │   │   │   ├── SeatRepository.java
     │   │   │   ├── UserRepository.java
     │   │   │   └── WaitlistRepository.java
-    │   │   ├── scheduler/                   <-- Background TTL Expiry & Promotion Tasks
+    │   │   ├── scheduler/                   <-- Background TTL Expiry Scheduler
     │   │   │   └── TicketHoldTtlScheduler.java
-    │   │   ├── security/                    <-- Supabase OAuth2 / Security config
-    │   │   │   ├── SecurityConfig.java
+    │   │   ├── security/                    <-- Supabase OAuth2 / Security Config
     │   │   │   ├── JwtAuthenticationConverter.java
+    │   │   │   ├── SecurityConfig.java
     │   │   │   └── TicketForgeUserPrincipal.java
-    │   │   └── service/                     <-- Core Business Logic & State Synchronization
+    │   │   └── service/                     <-- Core Transactional Business Logic
     │   │       ├── TicketForgeService.java
     │   │       └── TicketForgeServiceImpl.java
     │   └── resources/
-    │       ├── application.yml              <-- Shared settings & Actuator/OpenAPI
-    │       ├── application-dev.yml          <-- Local H2 database profile
-    │       ├── application-staging.yml      <-- Supabase Staging profile
-    │       ├── application-prod.yml         <-- Supabase Production profile (PgBouncer)
-    │       └── db/migration/                <-- Flyway version-controlled SQL migrations
-    │           └── V1__init_ticketing_schema.sql
+    │       ├── application.yml
+    │       ├── application-dev.yml
+    │       ├── application-prod.yml
+    │       ├── application-staging.yml
+    │       ├── db/migration/
+    │       │   └── V1__init_ticketing_schema.sql
+    │       └── graphql/
+    │           └── schema.graphqls
     └── test/
         └── java/com/ticketforge/
             ├── TicketForgeApplicationTests.java
+            ├── concurrency/
+            │   └── DistributedLockTest.java
+            ├── controller/                  <-- MockMvc REST & SSE Controller Tests
+            │   ├── EventStreamControllerTest.java
+            │   ├── ReservationControllerTest.java
+            │   ├── SeatControllerTest.java
+            │   └── WaitlistControllerTest.java
             ├── dsa/                         <-- Custom DSA Unit Tests
             │   ├── GenericMinHeapTest.java
             │   └── GenericRedBlackTreeTest.java
+            ├── event/                       <-- Redis Pub/Sub Tests
+            │   └── RedisEventPubSubTest.java
+            ├── exception/                   <-- RFC 7807 Exception Tests
+            │   └── GlobalExceptionHandlerTest.java
+            ├── graphql/                     <-- GraphQlTester Integration Tests
+            │   └── TicketForgeGraphQlTest.java
+            ├── ratelimit/                   <-- Rate Limiter Tests
+            │   └── RedisRateLimiterTest.java
             ├── repository/                  <-- Data JPA Integration Tests
             │   ├── ReservationRepositoryTest.java
             │   ├── SeatRepositoryTest.java
             │   ├── UserRepositoryTest.java
             │   └── WaitlistRepositoryTest.java
-            ├── scheduler/                   <-- Scheduler Mockito Unit Tests
+            ├── scheduler/                   <-- Scheduler Tests
             │   └── TicketHoldTtlSchedulerTest.java
-            └── service/                     <-- Service Layer & Concurrency Tests
+            ├── security/                    <-- Security Authorization Tests
+            │   └── SecurityAuthorizationTest.java
+            └── service/                     <-- Service & Concurrency Tests
+                ├── RedisCacheIntegrationTest.java
                 ├── TicketForgeServiceConcurrencyTest.java
                 └── TicketForgeServiceTest.java
 ```
@@ -346,3 +391,4 @@ ticket-forge/
 ## 📄 License
 
 This project is licensed under the terms of the [MIT License](LICENSE).
+
