@@ -3,6 +3,15 @@ spring:
     activate:
       on-profile: staging
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL:false}
+      timeout: 3000ms
+
   datasource:
     url: ${SUPABASE_DB_URL:jdbc:postgresql://aws-0-us-east-2.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0}
     username: ${SUPABASE_DB_USER:postgres.mksdjnpmljjjrevywutt}

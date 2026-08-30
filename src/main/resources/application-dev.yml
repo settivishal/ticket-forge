@@ -3,6 +3,15 @@ spring:
     activate:
       on-profile: dev
 
+  cache:
+    type: ${SPRING_CACHE_TYPE:simple}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+
   datasource:
     url: jdbc:h2:mem:ticketforge_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL
     driver-class-name: org.h2.Driver
@@ -36,6 +45,10 @@ spring:
         jwt:
           # In local dev: defaults to mock JWKS URI or dev Supabase if provided
           jwk-set-uri: ${SUPABASE_JWKS_URI:https://dummy.supabase.co/auth/v1/.well-known/jwks.json}
+
+ticketforge:
+  redisson:
+    enabled: ${REDISSON_ENABLED:false}
 
 logging:
   level:

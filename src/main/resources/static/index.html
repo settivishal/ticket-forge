@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="TicketForge - Ultra-High Concurrency Flash-Sale Ticketing Engine. Experience instant real-time seat reservation, priority waitlist, and sub-millisecond atomic inventory management.">
+    <title>TicketForge — Live Event Ticketing</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+</head>
+<body>
+
+    <!-- Sticky Top Navigation Bar -->
+    <header class="top-nav">
+        <div class="nav-left">
+            <a href="#" class="brand-logo" id="navLogo">
+                <div class="logo-badge">⚡</div>
+                <div class="brand-info">
+                    <span class="brand-name">TicketForge <span class="brand-tag">Live</span></span>
+                </div>
+            </a>
+
+            <!-- View Switcher -->
+            <nav class="view-nav-tabs" role="tablist">
+                <button class="view-tab-btn active" id="tabCustomerPortal" role="tab">
+                    <span>🎫 Buy Tickets</span>
+                </button>
+                <button class="view-tab-btn" id="tabAdminConsole" role="tab">
+                    <span>👑 Admin Operations</span>
+                </button>
+            </nav>
+        </div>
+
+        <div class="nav-right">
+            <!-- Real-Time SSE Connection Indicator -->
+            <div id="liveStatusBadge" class="live-status-pill" title="Connected to Real-Time SSE Stream">
+                <span class="pulse-dot"></span>
+                <span id="liveStatusText">Live Inventory Synced</span>
+            </div>
+
+            <!-- User Account Profile Button -->
+            <button class="user-profile-btn" id="btnUserAccount" title="Switch User or Manage Account">
+                <div class="user-avatar" id="navUserAvatar">A</div>
+                <div class="user-details">
+                    <span class="user-name" id="navUserName">Alex Miller</span>
+                    <span class="user-role-badge" id="navUserRole">⭐ VIP Pass (Tier 3)</span>
+                </div>
+                <span style="font-size: 10px; color: var(--text-muted);">&#9662;</span>
+            </button>
+
+            <!-- Dev & Debug Drawer Button -->
+            <button class="icon-btn" id="btnOpenDrawer" title="Engine Live Activity Feed">
+                <span>📡 Activity</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="app-container">
+        <!-- Event Hero Showcase Banner -->
+        <section class="event-hero">
+            <div class="event-details">
+                <span class="event-category-tag">🔥 High-Demand Flash Sale</span>
+                <h1 class="event-title">Cyber Symphony: World Tour 2026</h1>
+                <div class="event-meta">
+                    <span class="event-meta-item">📍 Grand World Arena &bull; Section A</span>
+                    <span class="event-meta-item">📅 Tonight &bull; 8:00 PM</span>
+                    <span class="event-meta-item">🎟️ Starting at $65.00</span>
+                </div>
+            </div>
+
+            <div class="event-stats-bar">
+                <div class="stat-item">
+                    <span class="stat-title">Available Seats</span>
+                    <span class="stat-number green" id="statAvailableCount">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-title">Reserved</span>
+                    <span class="stat-number blue" id="statReservedCount">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-title">Active Holds</span>
+                    <span class="stat-number gold" id="statHeldCount">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-title">Waitlist Depth</span>
+                    <span class="stat-number" id="statWaitlistCount">0</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Capacity Distribution Progress Strip -->
+        <div class="capacity-strip">
+            <div class="capacity-strip-header">
+                <span>Arena Seat Occupancy</span>
+                <span id="statOccupancyPct" style="color: #60a5fa;">0% Booked</span>
+            </div>
+            <div class="capacity-track">
+                <div id="barReserved" class="cap-bar cap-reserved" style="width: 0%" title="Reserved"></div>
+                <div id="barHeld" class="cap-bar cap-held" style="width: 0%" title="Held (Active TTL)"></div>
+                <div id="barAvailable" class="cap-bar cap-available" style="width: 100%" title="Available"></div>
+            </div>
+            <div class="capacity-legend">
+                <span class="legend-chip"><span class="legend-dot dot-avail"></span> Available</span>
+                <span class="legend-chip"><span class="legend-dot dot-held"></span> On Hold (Active TTL)</span>
+                <span class="legend-chip"><span class="legend-dot dot-sold"></span> Reserved / Sold</span>
+            </div>
+        </div>
+
+        <!-- ==================================================================
+             VIEW 1: CUSTOMER BOOKING PORTAL
+             ================================================================== -->
+        <main id="customerView" class="customer-portal-view active">
+            <div class="booking-grid">
+                <!-- Seating Chart -->
+                <section class="glass-panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">🏟️ Interactive Arena Seating Chart</h2>
+                        <button id="btnSyncSeats" class="icon-btn" title="Sync Map">
+                            <span>🔄 Sync</span>
+                        </button>
+                    </div>
+
+                    <!-- Concert Stage -->
+                    <div class="stage-container">
+                        <div class="stage-arch">★ MAIN STAGE ★</div>
+                    </div>
+
+                    <!-- Pricing Legend -->
+                    <div class="pricing-tiers-bar">
+                        <div class="tier-badge-pill vip">
+                            <span>⭐ VIP Front Pass</span>
+                            <strong>$250</strong>
+                        </div>
+                        <div class="tier-badge-pill premium">
+                            <span>💎 Premium Center</span>
+                            <strong>$120</strong>
+                        </div>
+                        <div class="tier-badge-pill standard">
+                            <span>🟢 Standard Arena</span>
+                            <strong>$65</strong>
+                        </div>
+                    </div>
+
+                    <!-- 2D Seat Map Grid -->
+                    <div id="seatGrid" class="seat-grid-container">
+                        <p style="color: var(--text-secondary); text-align: center; grid-column: 1 / -1; padding: 40px;">
+                            Loading live arena seats...
+                        </p>
+                    </div>
+                </section>
+
+                <!-- Right Sidebar: Checkout, Hold Timer, & Waitlist -->
+                <aside class="checkout-card">
+                    <!-- Selected Ticket Checkout Box -->
+                    <div class="glass-panel">
+                        <div class="panel-header">
+                            <h3 class="panel-title">🎟️ Seat Selection</h3>
+                            <span id="selectedTierBadge" class="tier-badge-pill standard" style="display: none;">Standard</span>
+                        </div>
+
+                        <div class="selected-seat-summary" id="selectedSeatBox">
+                            <div class="summary-header">
+                                <span class="summary-seat-title" id="summarySeatNum">No seat selected</span>
+                                <span class="summary-price" id="summarySeatPrice">$0.00</span>
+                            </div>
+                            <div class="summary-row">
+                                <span>Status</span>
+                                <strong id="summarySeatStatus" style="color: var(--color-standard);">Available</strong>
+                            </div>
+                            <div class="summary-row">
+                                <span>Ticket Type</span>
+                                <span id="summarySeatTier">Tier 1 — Standard</span>
+                            </div>
+                            <div class="summary-row">
+                                <span>Assigned Fan</span>
+                                <span id="summaryFanName">Alex Miller</span>
+                            </div>
+                        </div>
+
+                        <!-- Hold Countdown Timer Widget -->
+                        <div id="holdTimerBox" class="hold-timer-box" style="margin-top: 14px;">
+                            <div class="hold-timer-text">⏱️ Seat Held For You</div>
+                            <div class="hold-countdown-val" id="holdCountdownVal">01:00</div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 18px;">
+                            <button id="btnReserveSeat" class="btn-primary" type="button">
+                                <span>⚡ Confirm &amp; Reserve Seat</span>
+                            </button>
+                            <button id="btnHoldSeat" class="btn-secondary" type="button">
+                                <span>⏱️ Place 60s Hold</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Priority Waitlist Card (Shown when sold out or for high-demand) -->
+                    <div class="waitlist-card" id="waitlistPromoCard">
+                        <div class="waitlist-card-title">
+                            <span>⏳ Priority Waitlist Queue</span>
+                        </div>
+                        <p class="waitlist-card-desc">
+                            High-concurrency burst in progress? If seats sell out, your priority tier automatically secures the next available seat upon cancellation or capacity expansion.
+                        </p>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 12px; color: var(--text-secondary);">Your Priority:</span>
+                            <span id="userWaitlistTier" class="tier-badge-pill vip" style="padding: 4px 8px; font-size: 11px;">Tier 3 — VIP</span>
+                        </div>
+                        <button id="btnJoinWaitlistDirect" class="btn-secondary" style="font-size: 12px; padding: 8px;">
+                            <span>Join Waitlist with Priority</span>
+                        </button>
+                    </div>
+                </aside>
+            </div>
+
+            <!-- "My Digital Passes" Section -->
+            <section class="my-passes-section">
+                <div class="panel-header">
+                    <h2 class="panel-title">📱 My Confirmed Digital Passes &amp; Tickets</h2>
+                </div>
+                <div id="myTicketsContainer" class="digital-tickets-container">
+                    <p style="color: var(--text-muted); font-size: 13px;">No tickets currently reserved for this account. Select an available seat above to book your pass!</p>
+                </div>
+            </section>
+        </main>
+
+        <!-- ==================================================================
+             VIEW 2: ADMIN OPERATIONS CONSOLE
+             ================================================================== -->
+        <main id="adminView" class="admin-console-view">
+            <div class="admin-grid">
+                <!-- Venue Capacity Initialization -->
+                <div class="admin-card">
+                    <div class="admin-card-header">
+                        <span style="font-size: 20px;">🏟️</span>
+                        <div>
+                            <h3 class="admin-card-title">Initialize Venue Inventory</h3>
+                            <p class="admin-card-desc">Resets all bookings and provisions $N$ available seats.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="preset-btn-group">
+                        <button class="preset-btn" onclick="document.getElementById('adminInitCount').value = 24">24 Seats</button>
+                        <button class="preset-btn" onclick="document.getElementById('adminInitCount').value = 50">50 Seats</button>
+                        <button class="preset-btn" onclick="document.getElementById('adminInitCount').value = 100">100 Seats</button>
+                        <button class="preset-btn" onclick="document.getElementById('adminInitCount').value = 250">250 Seats</button>
+                    </div>
+
+                    <div class="admin-action-row">
+                        <input type="number" id="adminInitCount" class="custom-input" value="50" min="1" max="500">
+                        <button id="btnAdminInitVenue" class="btn-danger" type="button">
+                            <span>Reset Venue</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Capacity Expansion -->
+                <div class="admin-card">
+                    <div class="admin-card-header">
+                        <span style="font-size: 20px;">➕</span>
+                        <div>
+                            <h3 class="admin-card-title">Dynamic Capacity Expansion</h3>
+                            <p class="admin-card-desc">Adds $N$ additional seats. Automatically fulfills waiting queue customers instantly.</p>
+                        </div>
+                    </div>
+
+                    <div class="preset-btn-group">
+                        <button class="preset-btn" onclick="document.getElementById('adminExpandCount').value = 5">+5 Seats</button>
+                        <button class="preset-btn" onclick="document.getElementById('adminExpandCount').value = 10">+10 Seats</button>
+                        <button class="preset-btn" onclick="document.getElementById('adminExpandCount').value = 25">+25 Seats</button>
+                    </div>
+
+                    <div class="admin-action-row">
+                        <input type="number" id="adminExpandCount" class="custom-input" value="10" min="1" max="100">
+                        <button id="btnAdminExpandVenue" class="btn-primary" type="button">
+                            <span>+ Add Seats</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Batch User Seat Release -->
+                <div class="admin-card">
+                    <div class="admin-card-header">
+                        <span style="font-size: 20px;">✂️</span>
+                        <div>
+                            <h3 class="admin-card-title">Batch Seat Range Release</h3>
+                            <p class="admin-card-desc">Releases reservations assigned to users in lexicographical range $[u_1, u_2]$.</p>
+                        </div>
+                    </div>
+
+                    <div class="admin-action-row">
+                        <input type="text" id="adminReleaseFrom" class="custom-input" placeholder="From (e.g. usr_100)">
+                        <input type="text" id="adminReleaseTo" class="custom-input" placeholder="To (e.g. usr_200)">
+                        <button id="btnAdminReleaseRange" class="btn-secondary" type="button">
+                            <span>Release Range</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- High-Concurrency Flash Sale Burst Simulator -->
+                <div class="admin-card burst-card">
+                    <div class="admin-card-header">
+                        <span style="font-size: 20px;">🔥</span>
+                        <div>
+                            <h3 class="admin-card-title">Flash-Sale Burst Simulator</h3>
+                            <p class="admin-card-desc">Fires 10 concurrent reservation requests across virtual threads to test atomic contention.</p>
+                        </div>
+                    </div>
+
+                    <button id="btnAdminBurstTest" class="btn-burst" type="button">
+                        <span>⚡ Fire 10 Parallel Reservation Requests</span>
+                    </button>
+                    <span id="burstStatusMsg" style="font-size: 12px; color: #fbbf24; text-align: center;"></span>
+                </div>
+            </div>
+
+            <!-- Waitlist Administration Table -->
+            <section class="glass-panel" style="margin-top: 10px;">
+                <div class="panel-header">
+                    <h3 class="panel-title">📋 Live Waitlist Queue Management</h3>
+                    <button id="btnAdminRefreshWaitlist" class="icon-btn">🔄 Refresh Queue</button>
+                </div>
+                <div id="adminWaitlistTableContainer">
+                    <p style="color: var(--text-muted); font-size: 13px;">No users currently on waitlist.</p>
+                </div>
+            </section>
+        </main>
+
+        <!-- Application Footer -->
+        <footer class="app-footer">
+            <div>
+                TicketForge &copy; 2026 &bull; Ultra-High Concurrency Flash-Sale Ticketing Engine &bull; Spring Boot 3.3 Virtual Threads
+            </div>
+            <div class="footer-links">
+                <a href="/swagger-ui.html" target="_blank" class="footer-link">📑 Swagger Docs</a>
+                <a href="/graphiql" target="_blank" class="footer-link">🔮 GraphiQL IDE</a>
+                <a href="/actuator/health" target="_blank" class="footer-link">💓 System Health</a>
+            </div>
+        </footer>
+    </div>
+
+    <!-- ==================================================================
+         USER AUTHENTICATION & SWITCH ACCOUNT MODAL
+         ================================================================== -->
+    <div id="authModal" class="modal-backdrop">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 class="modal-title">Sign In / Switch Account</h3>
+                <button id="btnCloseAuthModal" class="modal-close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="auth-tabs" role="tablist">
+                    <button class="auth-tab-btn active" id="tabCustomerAuth" role="tab">Customer Fan</button>
+                    <button class="auth-tab-btn" id="tabAdminAuth" role="tab">👑 Venue Admin</button>
+                </div>
+
+                <!-- Customer Auth Form -->
+                <div id="customerAuthForm">
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <div>
+                            <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Fan Handle / User ID</label>
+                            <input type="text" id="authFanUserId" class="custom-input" value="usr_alex_101" placeholder="e.g. usr_alex">
+                        </div>
+
+                        <div>
+                            <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Priority Tier</label>
+                            <select id="authFanPriority" class="custom-select">
+                                <option value="3" selected>⭐ Tier 3 — VIP Pass</option>
+                                <option value="2">💎 Tier 2 — Premium Presale</option>
+                                <option value="1">🟢 Tier 1 — Standard Fan</option>
+                            </select>
+                        </div>
+
+                        <button id="btnSubmitCustomerAuth" class="btn-primary" type="button" style="margin-top: 6px;">
+                            <span>Sign In as Customer</span>
+                        </button>
+                    </div>
+
+                    <div style="margin-top: 18px;">
+                        <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">1-Click Quick Demo Fans:</span>
+                        <div class="quick-signin-grid">
+                            <div class="quick-user-card" onclick="window.quickSignIn('usr_alex', 'Alex Miller', 'CUSTOMER', 3)">
+                                <span class="quick-user-name">⭐ Alex (VIP)</span>
+                                <span class="quick-user-role">Tier 3 VIP Access</span>
+                            </div>
+                            <div class="quick-user-card" onclick="window.quickSignIn('usr_jordan', 'Jordan Lee', 'CUSTOMER', 1)">
+                                <span class="quick-user-name">🟢 Jordan (Fan)</span>
+                                <span class="quick-user-role">Tier 1 Standard</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin Auth Form -->
+                <div id="adminAuthForm" style="display: none;">
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <p style="font-size: 13px; color: var(--text-secondary);">
+                            Access full venue capacity management, batch range cancellation, and burst stress test controls.
+                        </p>
+                        <div>
+                            <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Admin Key / ID</label>
+                            <input type="text" id="authAdminId" class="custom-input" value="dev_admin" readonly>
+                        </div>
+                        <button id="btnSubmitAdminAuth" class="btn-primary" type="button" style="background: linear-gradient(135deg, #f59e0b, #d97706); margin-top: 6px;">
+                            <span>Sign In as Venue Administrator</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================================================================
+         SLIDE-OVER REAL-TIME ACTIVITY LOG DRAWER
+         ================================================================== -->
+    <div id="drawerBackdrop" class="drawer-backdrop">
+        <aside class="activity-drawer">
+            <div class="drawer-header">
+                <h3 class="drawer-title">📡 Live Engine Activity Feed</h3>
+                <button id="btnCloseDrawer" class="modal-close-btn">&times;</button>
+            </div>
+            <div style="padding: 8px 16px; border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between;">
+                <span style="font-size: 11px; color: var(--text-muted);">SSE Stream: /api/v1/events/stream</span>
+                <button id="btnClearActivityFeed" style="background: none; border: none; color: #60a5fa; font-size: 11px; cursor: pointer;">Clear Feed</button>
+            </div>
+            <div id="drawerFeed" class="drawer-feed">
+                <div class="drawer-entry">
+                    <span style="color: var(--text-muted); font-size: 10px;">[INIT]</span>
+                    <span style="color: #34d399;">Connecting to SSE stream...</span>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Floating Real-Time Toast Notifications Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Application Script -->
+    <script src="app.js"></script>
+</body>
+</html>

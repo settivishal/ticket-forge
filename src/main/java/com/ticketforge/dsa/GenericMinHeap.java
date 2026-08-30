@@ -175,13 +175,11 @@ public class GenericMinHeap<T extends Comparable<T>> {
                 return false;
             }
 
-            T oldItem = heap.get(index);
             heap.set(index, newItem);
 
-            int cmp = newItem.compareTo(oldItem);
-            if (cmp < 0) {
+            if (index > 0 && heap.get(index).compareTo(heap.get((index - 1) / 2)) < 0) {
                 promoteElement(index);
-            } else if (cmp > 0) {
+            } else {
                 demoteElement(index);
             }
             return true;

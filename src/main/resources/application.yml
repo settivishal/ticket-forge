@@ -6,6 +6,23 @@ spring:
   threads:
     virtual:
       enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3000ms
+  graphql:
+    graphiql:
+      enabled: true
+      path: /graphiql
+    websocket:
+      path: /graphql
+    schema:
+      printer:
+        enabled: true
+      inspection:
+        enabled: true
 
 server:
   port: ${PORT:8080}
@@ -22,6 +39,9 @@ management:
   endpoint:
     health:
       show-details: always
+  health:
+    redis:
+      enabled: false
   metrics:
     tags:
       application: ${spring.application.name}
@@ -38,6 +58,8 @@ springdoc:
 
 # TicketForge Engine Settings
 ticketforge:
+  redisson:
+    enabled: ${REDISSON_ENABLED:true}
   ttl:
     cleanup-interval-ms: 5000
     default-hold-seconds: 300
