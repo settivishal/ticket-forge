@@ -23,10 +23,10 @@ jobs:
           cache: 'maven'
 
       - name: Make Maven Wrapper Executable
-        run: chmod +x ./mvnw
-
+        run: chmod +x backend/mvnw
       - name: Build & Run Automated Test Suite
+        working-directory: backend
         run: ./mvnw clean test --batch-mode
-
       - name: Package Executable JAR
+        working-directory: backend
         run: ./mvnw clean package -DskipTests --batch-mode
