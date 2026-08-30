@@ -21,20 +21,20 @@ class StaticUiDashboardTest {
     private MockMvc mockMvc;
 
     @Test
-    @DisplayName("UI: Serves index.html dashboard with TicketForge title and glassmorphism elements")
+    @DisplayName("UI: Serves index.html dashboard with TicketForge title and seating elements")
     void testServesIndexHtml() throws Exception {
         mockMvc.perform(get("/index.html"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("TicketForge")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Live Arena Seat Map")));
+            .andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("TicketForge")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("Interactive Arena Seating Chart")));
     }
 
     @Test
-    @DisplayName("UI: Serves styles.css with glassmorphic tokens")
+    @DisplayName("UI: Serves styles.css with modern design tokens")
     void testServesStylesCss() throws Exception {
         mockMvc.perform(get("/styles.css"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("glass-card")));
+            .andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("brand-primary")));
     }
 
     @Test
