@@ -1,20 +1,29 @@
 /**
  * TicketForge — Modern Enterprise Ticketing Engine UI
- * Ticketmaster-inspired interface with real-time SSE stream, virtual thread concurrency,
- * interactive 2D seating chart, customer & admin login state, and dynamic digital passes.
+ * Ticketmaster-inspired interface with real-time SSE stream, Supabase OAuth2 / Dev Mock authentication,
+ * interactive 2D seating chart, customer & admin roles, and dynamic digital passes.
  */
 
 (function () {
     'use strict';
+
+    // Client Authentication Configuration (Fetched from backend)
+    let authConfig = {
+        isDev: true,
+        supabaseUrl: 'https://mksdjnpmljjjrevywutt.supabase.co',
+        supabaseAnonKey: ''
+    };
 
     // Application State
     const state = {
         currentUser: {
             id: 'usr_alex',
             name: 'Alex Miller',
+            email: 'alex@ticketforge.local',
             role: 'CUSTOMER', // 'CUSTOMER' or 'ADMIN'
             priority: 3 // 1: Standard, 2: Premium, 3: VIP
         },
+        token: null, // Supabase RS256 JWT access token
         activeView: 'CUSTOMER', // 'CUSTOMER' or 'ADMIN'
         seats: [],
         systemStatus: null,
@@ -82,16 +91,26 @@
         adminWaitlistTableContainer: document.getElementById('adminWaitlistTableContainer'),
         btnAdminRefreshWaitlist: document.getElementById('btnAdminRefreshWaitlist'),
 
-        // Auth Modal
+        // Auth Modal & Forms
         authModal: document.getElementById('authModal'),
         btnCloseAuthModal: document.getElementById('btnCloseAuthModal'),
-        tabCustomerAuth: document.getElementById('tabCustomerAuth'),
+        tabSignIn: document.getElementById('tabSignIn'),
+        tabSignUp: document.getElementById('tabSignUp'),
         tabAdminAuth: document.getElementById('tabAdminAuth'),
-        customerAuthForm: document.getElementById('customerAuthForm'),
+        authAlertMsg: document.getElementById('authAlertMsg'),
+        signInForm: document.getElementById('signInForm'),
+        signUpForm: document.getElementById('signUpForm'),
         adminAuthForm: document.getElementById('adminAuthForm'),
-        authFanUserId: document.getElementById('authFanUserId'),
-        authFanPriority: document.getElementById('authFanPriority'),
-        btnSubmitCustomerAuth: document.getElementById('btnSubmitCustomerAuth'),
+        loginEmail: document.getElementById('loginEmail'),
+        loginPassword: document.getElementById('loginPassword'),
+        signupName: document.getElementById('signupName'),
+        signupEmail: document.getElementById('signupEmail'),
+        signupPassword: document.getElementById('signupPassword'),
+        signupPriority: document.getElementById('signupPriority'),
+        adminAuthEmail: document.getElementById('adminAuthEmail'),
+        adminAuthPassword: document.getElementById('adminAuthPassword'),
+        btnSubmitSignIn: document.getElementById('btnSubmitSignIn'),
+        btnSubmitSignUp: document.getElementById('btnSubmitSignUp'),
         btnSubmitAdminAuth: document.getElementById('btnSubmitAdminAuth'),
 
         // Activity Drawer & Toasts
@@ -114,7 +133,7 @@
         }
     }
 
-    // Helper: Headers for REST & GraphQL requests
+    // Helper: Build API Request Headers
     function getAuthHeaders(extraHeaders = {}) {
         const headers = {
             'Content-Type': 'application/json',
@@ -122,15 +141,21 @@
             ...extraHeaders
         };
 
-        if (state.currentUser.role === 'ADMIN') {
-            headers['Authorization'] = 'Bearer dev-admin';
-            headers['X-Dev-Role'] = 'ADMIN';
-            headers['X-Dev-User'] = state.currentUser.id;
-        } else {
-            headers['Authorization'] = 'Bearer dev-customer';
-            headers['X-Dev-Role'] = 'CUSTOMER';
-            headers['X-Dev-User'] = state.currentUser.id;
-            headers['X-Dev-Priority'] = String(state.currentUser.priority || 1);
+        if (state.token) {
+            // Real Supabase RS256 JWT
+            headers['Authorization'] = `Bearer ${state.token}`;
+        } else if (authConfig.isDev) {
+            // Local dev profile mock token fallback
+            if (state.currentUser.role === 'ADMIN') {
+                headers['Authorization'] = 'Bearer dev-admin';
+                headers['X-Dev-Role'] = 'ADMIN';
+                headers['X-Dev-User'] = state.currentUser.id;
+            } else {
+                headers['Authorization'] = 'Bearer dev-customer';
+                headers['X-Dev-Role'] = 'CUSTOMER';
+                headers['X-Dev-User'] = state.currentUser.id;
+                headers['X-Dev-Priority'] = String(state.currentUser.priority || 1);
+            }
         }
         return headers;
     }
@@ -232,7 +257,6 @@
 
         appendDrawerEntry(`${msg} ${seatNumber} ${user}`, type);
 
-        // Show context-aware toast notifications
         if (type === 'SEAT_RESERVED') {
             showToast(`Confirmed booking for Seat ${seatNumber} ${user}`, 'success', '⚡');
         } else if (type === 'SEAT_HELD') {
@@ -243,7 +267,6 @@
             showToast(`Seat ${seatNumber} released back to inventory`, 'info', '🔄');
         }
 
-        // Live refresh state
         fetchSystemStatus();
         fetchSeats();
         fetchWaitlist();
@@ -285,7 +308,19 @@
     async function fetchSeats() {
         try {
             const res = await fetch('/api/v1/seats', { headers: getAuthHeaders() });
-            if (!res.ok) return;
+            if (!res.ok) {
+                if (res.status === 401) {
+                    el.seatGrid.innerHTML = `
+                        <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-secondary);">
+                            <p>🔒 Please sign in above to view seat inventory &amp; book tickets.</p>
+                            <button class="btn-primary" style="width: auto; margin: 12px auto 0;" onclick="document.getElementById('btnUserAccount').click()">
+                                Sign In / Sign Up
+                            </button>
+                        </div>
+                    `;
+                }
+                return;
+            }
             const json = await res.json();
             const seats = json.data || [];
             state.seats = seats;
@@ -348,7 +383,6 @@
         el.selectedTierBadge.className = `tier-badge-pill ${tierInfo.className}`;
         el.selectedTierBadge.textContent = tierInfo.name;
 
-        // Button state
         if (seat.status === 'RESERVED') {
             el.btnReserveSeat.disabled = true;
             el.btnReserveSeat.style.opacity = '0.5';
@@ -366,8 +400,8 @@
     // 4. Customer Booking & Hold Actions
     // =========================================================================
     async function reserveSeat() {
-        const userId = state.currentUser.id;
-        const priority = state.currentUser.priority;
+        const userId = state.currentUser.id || state.currentUser.email || 'usr_fan';
+        const priority = state.currentUser.priority || 1;
 
         try {
             el.btnReserveSeat.innerHTML = '<span>⏳ Reserving...</span>';
@@ -384,6 +418,9 @@
                 clearHoldTimer();
             } else if (res.status === 202) {
                 showToast(`⏳ Venue sold out! Added ${userId} to Priority Waitlist.`, 'warning', '⏳');
+            } else if (res.status === 401) {
+                showToast('🔒 Session expired. Please sign in to book.', 'warning');
+                el.authModal.classList.add('active');
             } else {
                 showToast(`⚠️ ${json.detail || json.message || 'Booking unsuccessful'}`, 'warning');
             }
@@ -399,9 +436,9 @@
     }
 
     async function holdSeat() {
-        const userId = state.currentUser.id;
-        const priority = state.currentUser.priority;
-        const ttl = 60; // 60-second hold
+        const userId = state.currentUser.id || state.currentUser.email || 'usr_fan';
+        const priority = state.currentUser.priority || 1;
+        const ttl = 60;
 
         const query = `
             mutation {
@@ -493,13 +530,13 @@
             const json = await res.json();
             const allReservations = json.data || [];
             
-            // Filter reservations belonging to current user
-            const myReservations = allReservations.filter(r => r.userId === state.currentUser.id);
+            const myId = state.currentUser.id || state.currentUser.email;
+            const myReservations = allReservations.filter(r => r.userId === myId);
 
             if (myReservations.length === 0) {
                 el.myTicketsContainer.innerHTML = `
                     <p style="color: var(--text-muted); font-size: 13px;">
-                        No tickets currently reserved for <strong>${state.currentUser.name}</strong> (${state.currentUser.id}). Select a seat above to book!
+                        No tickets currently reserved for <strong>${state.currentUser.name}</strong>. Select a seat above to book!
                     </p>
                 `;
                 return;
@@ -519,7 +556,7 @@
                     <div class="ticket-pass-body">
                         <div>
                             <div class="ticket-seat-highlight">SEAT #${ticket.seatNumber}</div>
-                            <div class="ticket-holder">Fan: ${state.currentUser.name} (${ticket.userId})</div>
+                            <div class="ticket-holder">Fan: ${state.currentUser.name}</div>
                             <div style="font-size: 12px; color: #34d399; margin-top: 4px;">● Confirmed Admission</div>
                         </div>
                         <div class="ticket-qr-mockup">
@@ -544,8 +581,9 @@
     }
 
     window.cancelTicket = async function (seatNumber) {
+        const userId = state.currentUser.id || state.currentUser.email;
         try {
-            const res = await fetch(`/api/v1/reservations/${seatNumber}?userId=${encodeURIComponent(state.currentUser.id)}`, {
+            const res = await fetch(`/api/v1/reservations/${seatNumber}?userId=${encodeURIComponent(userId)}`, {
                 method: 'DELETE',
                 headers: getAuthHeaders()
             });
@@ -569,7 +607,7 @@
             el.btnAdminInitVenue.innerHTML = '<span>Resetting...</span>';
             const res = await fetch('/api/v1/seats/initialize', {
                 method: 'POST',
-                headers: getAuthHeaders({ 'Authorization': 'Bearer dev-admin' }),
+                headers: getAuthHeaders(),
                 body: JSON.stringify({ seatCount: count })
             });
             el.btnAdminInitVenue.innerHTML = '<span>Reset Venue</span>';
@@ -580,6 +618,8 @@
                 fetchSeats();
                 fetchWaitlist();
                 fetchMyTickets();
+            } else {
+                showToast('Admin permission required to initialize venue.', 'warning');
             }
         } catch (err) {
             console.error('Admin initialize error:', err);
@@ -593,7 +633,7 @@
             el.btnAdminExpandVenue.innerHTML = '<span>Adding...</span>';
             const res = await fetch('/api/v1/seats/expand', {
                 method: 'POST',
-                headers: getAuthHeaders({ 'Authorization': 'Bearer dev-admin' }),
+                headers: getAuthHeaders(),
                 body: JSON.stringify({ additionalCount: count })
             });
             el.btnAdminExpandVenue.innerHTML = '<span>+ Add Seats</span>';
@@ -622,7 +662,7 @@
         try {
             const res = await fetch('/api/v1/reservations/release-range', {
                 method: 'POST',
-                headers: getAuthHeaders({ 'Authorization': 'Bearer dev-admin' }),
+                headers: getAuthHeaders(),
                 body: JSON.stringify({ fromUserId: from, toUserId: to })
             });
             const json = await res.json();
@@ -747,24 +787,202 @@
     };
 
     // =========================================================================
-    // 7. Authentication & Profile Management
+    // 7. Supabase & Client Authentication Logic
     // =========================================================================
+    async function fetchAuthConfig() {
+        try {
+            const res = await fetch('/api/v1/auth/config');
+            if (res.ok) {
+                const json = await res.json();
+                if (json.data) {
+                    authConfig = json.data;
+                }
+            }
+        } catch (err) {
+            console.warn('Unable to load auth config:', err);
+        }
+    }
+
+    async function handleSignIn(email, password) {
+        showAuthAlert('Signing in...', 'info');
+        
+        // If in Dev mode or mock profile
+        if (authConfig.isDev) {
+            const isAdm = email.includes('admin') || password.includes('admin');
+            const role = isAdm ? 'ADMIN' : 'CUSTOMER';
+            const name = email.split('@')[0].toUpperCase();
+            state.currentUser = { id: 'usr_' + email.split('@')[0], name, email, role, priority: 3 };
+            state.token = null;
+            saveUserState();
+            updateUserProfileUI();
+            hideAuthModal();
+            showToast(`Signed in as ${name}`, 'success', '👤');
+            fetchSeats();
+            fetchMyTickets();
+            return;
+        }
+
+        // Production / Staging Supabase OAuth2 Token Request
+        try {
+            const endpoint = `${authConfig.supabaseUrl}/auth/v1/token?grant_type=password`;
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': authConfig.supabaseAnonKey
+                },
+                body: JSON.stringify({ email, password })
+            });
+
+            const json = await res.json();
+            if (res.ok && json.access_token) {
+                state.token = json.access_token;
+                const user = json.user || {};
+                const userMeta = user.user_metadata || {};
+                const appMeta = user.app_metadata || {};
+
+                let role = 'CUSTOMER';
+                if (appMeta.role === 'ROLE_ADMIN' || appMeta.role === 'admin' || userMeta.role === 'admin') {
+                    role = 'ADMIN';
+                }
+
+                state.currentUser = {
+                    id: user.id || email.split('@')[0],
+                    name: userMeta.name || email.split('@')[0],
+                    email: user.email || email,
+                    role: role,
+                    priority: parseInt(userMeta.priority_tier, 10) || 1
+                };
+
+                saveUserState();
+                updateUserProfileUI();
+                hideAuthModal();
+                showToast(`Welcome back, ${state.currentUser.name}!`, 'success', '🎟️');
+                fetchSeats();
+                fetchMyTickets();
+            } else {
+                showAuthAlert(json.error_description || json.msg || 'Invalid email or password.', 'error');
+            }
+        } catch (err) {
+            console.error('Supabase Auth error:', err);
+            showAuthAlert('Unable to reach authentication server.', 'error');
+        }
+    }
+
+    async function handleSignUp(name, email, password, priority) {
+        showAuthAlert('Creating account...', 'info');
+
+        if (authConfig.isDev) {
+            state.currentUser = { id: 'usr_' + email.split('@')[0], name, email, role: 'CUSTOMER', priority };
+            state.token = null;
+            saveUserState();
+            updateUserProfileUI();
+            hideAuthModal();
+            showToast(`Account created for ${name}!`, 'success', '✅');
+            fetchSeats();
+            fetchMyTickets();
+            return;
+        }
+
+        try {
+            const endpoint = `${authConfig.supabaseUrl}/auth/v1/signup`;
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': authConfig.supabaseAnonKey
+                },
+                body: JSON.stringify({
+                    email,
+                    password,
+                    data: {
+                        name: name,
+                        priority_tier: priority,
+                        role: 'ROLE_CUSTOMER'
+                    }
+                })
+            });
+
+            const json = await res.json();
+            if (res.ok) {
+                if (json.access_token) {
+                    state.token = json.access_token;
+                    state.currentUser = {
+                        id: json.user.id,
+                        name,
+                        email,
+                        role: 'CUSTOMER',
+                        priority
+                    };
+                    saveUserState();
+                    updateUserProfileUI();
+                    hideAuthModal();
+                    showToast(`Account created & signed in as ${name}!`, 'success', '🎉');
+                    fetchSeats();
+                    fetchMyTickets();
+                } else {
+                    showAuthAlert('Sign up successful! Please check your email to confirm registration or sign in.', 'success');
+                }
+            } else {
+                showAuthAlert(json.error_description || json.msg || 'Registration failed.', 'error');
+            }
+        } catch (err) {
+            console.error('Sign up error:', err);
+            showAuthAlert('Authentication error during registration.', 'error');
+        }
+    }
+
+    function showAuthAlert(msg, type) {
+        el.authAlertMsg.style.display = 'block';
+        el.authAlertMsg.textContent = msg;
+        el.authAlertMsg.style.background = type === 'error' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)';
+        el.authAlertMsg.style.color = type === 'error' ? '#ef4444' : '#60a5fa';
+        el.authAlertMsg.style.border = `1px solid ${type === 'error' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`;
+    }
+
+    function hideAuthModal() {
+        el.authModal.classList.remove('active');
+        el.authAlertMsg.style.display = 'none';
+    }
+
+    function saveUserState() {
+        localStorage.setItem('tf_user', JSON.stringify(state.currentUser));
+        if (state.token) {
+            localStorage.setItem('tf_token', state.token);
+        } else {
+            localStorage.removeItem('tf_token');
+        }
+    }
+
+    function loadSavedUser() {
+        try {
+            const savedUser = localStorage.getItem('tf_user');
+            const savedToken = localStorage.getItem('tf_token');
+            if (savedUser) state.currentUser = JSON.parse(savedUser);
+            if (savedToken) state.token = savedToken;
+        } catch (e) {
+            console.error('Error loading saved user:', e);
+        }
+        updateUserProfileUI();
+    }
+
     function updateUserProfileUI() {
         if (state.currentUser.role === 'ADMIN') {
             el.navUserAvatar.textContent = '👑';
             el.navUserAvatar.className = 'user-avatar admin-avatar';
-            el.navUserName.textContent = 'Admin Console';
+            el.navUserName.textContent = state.currentUser.name || 'Admin';
             el.navUserRole.textContent = '👑 Venue Operations';
             el.summaryFanName.textContent = 'Venue Admin';
             el.tabAdminConsole.style.display = 'inline-flex';
         } else {
-            el.navUserAvatar.textContent = state.currentUser.name.charAt(0).toUpperCase();
+            el.navUserAvatar.textContent = (state.currentUser.name || 'A').charAt(0).toUpperCase();
             el.navUserAvatar.className = 'user-avatar';
             el.navUserName.textContent = state.currentUser.name;
-            const tierText = state.currentUser.priority === 3 ? '⭐ VIP Member (Tier 3)' : (state.currentUser.priority === 2 ? '💎 Presale Pass (Tier 2)' : '🟢 Standard Fan (Tier 1)');
+            const prio = state.currentUser.priority || 1;
+            const tierText = prio === 3 ? '⭐ VIP Member (Tier 3)' : (prio === 2 ? '💎 Presale Pass (Tier 2)' : '🟢 Standard Fan (Tier 1)');
             el.navUserRole.textContent = tierText;
             el.summaryFanName.textContent = state.currentUser.name;
-            el.userWaitlistTier.textContent = `Tier ${state.currentUser.priority}`;
+            el.userWaitlistTier.textContent = `Tier ${prio}`;
         }
     }
 
@@ -783,26 +1001,16 @@
         }
     }
 
-    window.quickSignIn = function (id, name, role, priority) {
-        state.currentUser = { id, name, role, priority };
-        localStorage.setItem('tf_user', JSON.stringify(state.currentUser));
+    window.demoSignIn = function (email, name, role, priority) {
+        state.currentUser = { id: 'usr_' + email.split('@')[0], name, email, role, priority };
+        state.token = null;
+        saveUserState();
         updateUserProfileUI();
-        el.authModal.classList.remove('active');
+        hideAuthModal();
         showToast(`Signed in as ${name}`, 'success', '👤');
+        fetchSeats();
         fetchMyTickets();
     };
-
-    function loadSavedUser() {
-        try {
-            const saved = localStorage.getItem('tf_user');
-            if (saved) {
-                state.currentUser = JSON.parse(saved);
-            }
-        } catch (e) {
-            console.error('Error loading saved user:', e);
-        }
-        updateUserProfileUI();
-    }
 
     // =========================================================================
     // 8. Event Listeners & Bootstrapping
@@ -812,8 +1020,7 @@
         el.tabCustomerPortal.addEventListener('click', () => switchView('CUSTOMER'));
         el.tabAdminConsole.addEventListener('click', () => {
             if (state.currentUser.role !== 'ADMIN') {
-                // Auto switch to admin or open auth dialog
-                state.currentUser = { id: 'dev_admin', name: 'Administrator', role: 'ADMIN', priority: 3 };
+                state.currentUser.role = 'ADMIN';
                 updateUserProfileUI();
                 showToast('Switched to Venue Administrator mode', 'info', '👑');
             }
@@ -825,36 +1032,67 @@
             el.authModal.classList.add('active');
         });
 
-        el.btnCloseAuthModal.addEventListener('click', () => {
-            el.authModal.classList.remove('active');
-        });
-
+        el.btnCloseAuthModal.addEventListener('click', hideAuthModal);
         el.authModal.addEventListener('click', (e) => {
-            if (e.target === el.authModal) el.authModal.classList.remove('active');
+            if (e.target === el.authModal) hideAuthModal();
         });
 
-        el.tabCustomerAuth.addEventListener('click', () => {
-            el.tabCustomerAuth.classList.add('active');
+        el.tabSignIn.addEventListener('click', () => {
+            el.tabSignIn.classList.add('active');
+            el.tabSignUp.classList.remove('active');
             el.tabAdminAuth.classList.remove('active');
-            el.customerAuthForm.style.display = 'block';
+            el.signInForm.style.display = 'block';
+            el.signUpForm.style.display = 'none';
             el.adminAuthForm.style.display = 'none';
+            el.authAlertMsg.style.display = 'none';
+        });
+
+        el.tabSignUp.addEventListener('click', () => {
+            el.tabSignUp.classList.add('active');
+            el.tabSignIn.classList.remove('active');
+            el.tabAdminAuth.classList.remove('active');
+            el.signUpForm.style.display = 'block';
+            el.signInForm.style.display = 'none';
+            el.adminAuthForm.style.display = 'none';
+            el.authAlertMsg.style.display = 'none';
         });
 
         el.tabAdminAuth.addEventListener('click', () => {
             el.tabAdminAuth.classList.add('active');
-            el.tabCustomerAuth.classList.remove('active');
+            el.tabSignIn.classList.remove('active');
+            el.tabSignUp.classList.remove('active');
             el.adminAuthForm.style.display = 'block';
-            el.customerAuthForm.style.display = 'none';
+            el.signInForm.style.display = 'none';
+            el.signUpForm.style.display = 'none';
+            el.authAlertMsg.style.display = 'none';
         });
 
-        el.btnSubmitCustomerAuth.addEventListener('click', () => {
-            const handle = el.authFanUserId.value.trim() || 'usr_fan';
-            const priority = parseInt(el.authFanPriority.value, 10) || 1;
-            window.quickSignIn(handle, handle.replace('usr_', '').toUpperCase(), 'CUSTOMER', priority);
+        el.btnSubmitSignIn.addEventListener('click', () => {
+            const email = el.loginEmail.value.trim();
+            const pass = el.loginPassword.value;
+            if (!email || !pass) {
+                showAuthAlert('Please enter email and password.', 'error');
+                return;
+            }
+            handleSignIn(email, pass);
+        });
+
+        el.btnSubmitSignUp.addEventListener('click', () => {
+            const name = el.signupName.value.trim();
+            const email = el.signupEmail.value.trim();
+            const pass = el.signupPassword.value;
+            const priority = parseInt(el.signupPriority.value, 10) || 1;
+            if (!name || !email || !pass) {
+                showAuthAlert('Please complete all registration fields.', 'error');
+                return;
+            }
+            handleSignUp(name, email, pass, priority);
         });
 
         el.btnSubmitAdminAuth.addEventListener('click', () => {
-            window.quickSignIn('dev_admin', 'Administrator', 'ADMIN', 3);
+            const email = el.adminAuthEmail.value.trim();
+            const pass = el.adminAuthPassword.value;
+            handleSignIn(email, pass);
             switchView('ADMIN');
         });
 
@@ -895,7 +1133,8 @@
     }
 
     // App Initialization
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
+        await fetchAuthConfig();
         loadSavedUser();
         initEventListeners();
         initEventStream();

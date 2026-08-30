@@ -31,7 +31,7 @@ import java.util.List;
  * - Optional 'X-Dev-Priority: 3' -> Sets priority tier (1=Standard, 2=Premium, 3=VIP)
  */
 @Component
-@Profile({"dev", "staging", "test", "default"})
+@Profile({"dev", "test"})
 @Slf4j
 public class DevAuthenticationFilter extends OncePerRequestFilter {
 
