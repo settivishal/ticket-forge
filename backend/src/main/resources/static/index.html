@@ -349,48 +349,51 @@
     <!-- ==================================================================
          USER AUTHENTICATION & SWITCH ACCOUNT MODAL
          ================================================================== -->
+    <!-- ==================================================================
+         USER AUTHENTICATION & SWITCH ACCOUNT MODAL
+         ================================================================== -->
     <div id="authModal" class="modal-backdrop">
         <div class="modal-dialog">
             <div class="modal-header">
-                <h3 class="modal-title">Sign In / Switch Account</h3>
+                <h3 class="modal-title" id="authModalTitle">Account Authentication</h3>
                 <button id="btnCloseAuthModal" class="modal-close-btn">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="auth-tabs" role="tablist">
-                    <button class="auth-tab-btn active" id="tabCustomerAuth" role="tab">Customer Fan</button>
-                    <button class="auth-tab-btn" id="tabAdminAuth" role="tab">👑 Venue Admin</button>
+                    <button class="auth-tab-btn active" id="tabSignIn" role="tab">Sign In</button>
+                    <button class="auth-tab-btn" id="tabSignUp" role="tab">Create Account</button>
+                    <button class="auth-tab-btn" id="tabAdminAuth" role="tab">👑 Admin</button>
                 </div>
 
-                <!-- Customer Auth Form -->
-                <div id="customerAuthForm">
+                <!-- Form Error / Info Message -->
+                <div id="authAlertMsg" style="display: none; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 12px;"></div>
+
+                <!-- 1. Customer Sign In Form -->
+                <div id="signInForm">
                     <div style="display: flex; flex-direction: column; gap: 12px;">
                         <div>
-                            <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Fan Handle / User ID</label>
-                            <input type="text" id="authFanUserId" class="custom-input" value="usr_alex_101" placeholder="e.g. usr_alex">
+                            <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Email Address / Fan Handle</label>
+                            <input type="text" id="loginEmail" class="custom-input" value="alex@ticketforge.local" placeholder="e.g. fan@example.com" required>
                         </div>
 
                         <div>
-                            <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Priority Tier</label>
-                            <select id="authFanPriority" class="custom-select">
-                                <option value="3" selected>⭐ Tier 3 — VIP Pass</option>
-                                <option value="2">💎 Tier 2 — Premium Presale</option>
-                                <option value="1">🟢 Tier 1 — Standard Fan</option>
-                            </select>
+                            <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Password</label>
+                            <input type="password" id="loginPassword" class="custom-input" value="password123" placeholder="••••••••" required>
                         </div>
 
-                        <button id="btnSubmitCustomerAuth" class="btn-primary" type="button" style="margin-top: 6px;">
-                            <span>Sign In as Customer</span>
+                        <button id="btnSubmitSignIn" class="btn-primary" type="button" style="margin-top: 6px;">
+                            <span>Sign In to TicketForge</span>
                         </button>
                     </div>
 
                     <div style="margin-top: 18px;">
-                        <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">1-Click Quick Demo Fans:</span>
+                        <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">1-Click Demo Profiles:</span>
                         <div class="quick-signin-grid">
-                            <div class="quick-user-card" onclick="window.quickSignIn('usr_alex', 'Alex Miller', 'CUSTOMER', 3)">
+                            <div class="quick-user-card" onclick="window.demoSignIn('alex@ticketforge.local', 'Alex Miller', 'CUSTOMER', 3)">
                                 <span class="quick-user-name">⭐ Alex (VIP)</span>
-                                <span class="quick-user-role">Tier 3 VIP Access</span>
+                                <span class="quick-user-role">Tier 3 VIP Member</span>
                             </div>
-                            <div class="quick-user-card" onclick="window.quickSignIn('usr_jordan', 'Jordan Lee', 'CUSTOMER', 1)">
+                            <div class="quick-user-card" onclick="window.demoSignIn('jordan@ticketforge.local', 'Jordan Lee', 'CUSTOMER', 1)">
                                 <span class="quick-user-name">🟢 Jordan (Fan)</span>
                                 <span class="quick-user-role">Tier 1 Standard</span>
                             </div>
@@ -398,15 +401,52 @@
                     </div>
                 </div>
 
-                <!-- Admin Auth Form -->
+                <!-- 2. Customer Sign Up (Register) Form -->
+                <div id="signUpForm" style="display: none;">
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <div>
+                            <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Full Name / Display Handle</label>
+                            <input type="text" id="signupName" class="custom-input" placeholder="e.g. Taylor Swift Fan" required>
+                        </div>
+
+                        <div>
+                            <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Email Address</label>
+                            <input type="email" id="signupEmail" class="custom-input" placeholder="e.g. fan@example.com" required>
+                        </div>
+
+                        <div>
+                            <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Create Password</label>
+                            <input type="password" id="signupPassword" class="custom-input" placeholder="At least 6 characters" required>
+                        </div>
+
+                        <div>
+                            <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Priority Access Tier</label>
+                            <select id="signupPriority" class="custom-select">
+                                <option value="3" selected>⭐ Tier 3 — VIP Front Pass</option>
+                                <option value="2">💎 Tier 2 — Premium Presale</option>
+                                <option value="1">🟢 Tier 1 — Standard General</option>
+                            </select>
+                        </div>
+
+                        <button id="btnSubmitSignUp" class="btn-primary" type="button" style="margin-top: 6px;">
+                            <span>Create Account &amp; Book</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 3. Admin Authentication Form -->
                 <div id="adminAuthForm" style="display: none;">
                     <div style="display: flex; flex-direction: column; gap: 12px;">
                         <p style="font-size: 13px; color: var(--text-secondary);">
                             Access full venue capacity management, batch range cancellation, and burst stress test controls.
                         </p>
                         <div>
-                            <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Admin Key / ID</label>
-                            <input type="text" id="authAdminId" class="custom-input" value="dev_admin" readonly>
+                            <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Admin Email / ID</label>
+                            <input type="text" id="adminAuthEmail" class="custom-input" value="admin@ticketforge.local">
+                        </div>
+                        <div>
+                            <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Admin Access Secret</label>
+                            <input type="password" id="adminAuthPassword" class="custom-input" value="admin_secret_key">
                         </div>
                         <button id="btnSubmitAdminAuth" class="btn-primary" type="button" style="background: linear-gradient(135deg, #f59e0b, #d97706); margin-top: 6px;">
                             <span>Sign In as Venue Administrator</span>
