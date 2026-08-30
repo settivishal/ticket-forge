@@ -284,7 +284,7 @@
 
     async function fetchSeats() {
         try {
-            const res = await fetch('/api/v1/seats');
+            const res = await fetch('/api/v1/seats', { headers: getAuthHeaders() });
             if (!res.ok) return;
             const json = await res.json();
             const seats = json.data || [];
