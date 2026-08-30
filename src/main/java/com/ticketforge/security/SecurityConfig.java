@@ -48,8 +48,8 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         // Dev H2 Console
                         .requestMatchers("/h2-console/**").permitAll()
-                        // Public SSE stream & availability queries
-                        .requestMatchers(HttpMethod.GET, "/api/v1/seats/availability", "/api/v1/events/stream").permitAll()
+                        // Public SSE stream, availability queries & auth config
+                        .requestMatchers(HttpMethod.GET, "/api/v1/seats/availability", "/api/v1/events/stream", "/api/v1/auth/config").permitAll()
                         // Admin restricted endpoints
                         .requestMatchers("/api/v1/seats/initialize", "/api/v1/seats/expand", "/api/v1/reservations/release-range").hasRole("ADMIN")
                         .requestMatchers("/actuator/**").hasRole("ADMIN")
