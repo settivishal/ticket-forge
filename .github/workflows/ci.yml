@@ -22,9 +22,9 @@ jobs:
           java-version: '21'
           cache: 'maven'
 
-        - name: Make Maven Wrapper Executable
-          run: chmod +x ./backend/mvnw
-        - name: Build & Run Automated Test Suite
-          run: ./backend/mvnw clean test --batch-mode
-        - name: Package Executable JAR
-          run: ./backend/mvnw clean package -DskipTests --batch-mode
+      - name: Make Maven Wrapper Executable
+        run: chmod +x ./backend/mvnw
+      - name: Build & Run Automated Test Suite
+        run: ./backend/mvnw clean test --batch-mode
+      - name: Package Executable JAR
+        run: ./backend/mvnw clean package -DskipTests --batch-mode
