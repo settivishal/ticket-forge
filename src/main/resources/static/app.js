@@ -1,6 +1,7 @@
 /**
- * TicketForge — Interactive Glassmorphism Dashboard Engine
- * Real-time SSE event stream, REST & GraphQL client, dynamic 2D seat map
+ * TicketForge — Modern Enterprise Ticketing Engine UI
+ * Ticketmaster-inspired interface with real-time SSE stream, virtual thread concurrency,
+ * interactive 2D seating chart, customer & admin login state, and dynamic digital passes.
  */
 
 (function () {
@@ -8,65 +9,112 @@
 
     // Application State
     const state = {
-        authRole: 'dev-customer', // 'dev-customer', 'dev-vip', 'dev-admin'
+        currentUser: {
+            id: 'usr_alex',
+            name: 'Alex Miller',
+            role: 'CUSTOMER', // 'CUSTOMER' or 'ADMIN'
+            priority: 3 // 1: Standard, 2: Premium, 3: VIP
+        },
+        activeView: 'CUSTOMER', // 'CUSTOMER' or 'ADMIN'
         seats: [],
         systemStatus: null,
         waitlist: [],
+        selectedSeat: null,
         eventSource: null,
-        selectedSeat: null
+        holdInterval: null,
+        holdSecondsRemaining: 0
     };
 
-    // DOM Elements
-    const elements = {
-        roleSelector: document.getElementById('roleSelector'),
-        sseStatusBadge: document.getElementById('sseStatusBadge'),
-        sseStatusText: document.getElementById('sseStatusText'),
-        statTotalSeats: document.getElementById('statTotalSeats'),
-        statAvailableSeats: document.getElementById('statAvailableSeats'),
-        statAvailablePct: document.getElementById('statAvailablePct'),
-        statReservedSeats: document.getElementById('statReservedSeats'),
-        statHeldSeats: document.getElementById('statHeldSeats'),
+    // DOM Elements Cache
+    const el = {
+        // Navigation & Auth
+        tabCustomerPortal: document.getElementById('tabCustomerPortal'),
+        tabAdminConsole: document.getElementById('tabAdminConsole'),
+        liveStatusBadge: document.getElementById('liveStatusBadge'),
+        liveStatusText: document.getElementById('liveStatusText'),
+        btnUserAccount: document.getElementById('btnUserAccount'),
+        navUserAvatar: document.getElementById('navUserAvatar'),
+        navUserName: document.getElementById('navUserName'),
+        navUserRole: document.getElementById('navUserRole'),
+        
+        // Views
+        customerView: document.getElementById('customerView'),
+        adminView: document.getElementById('adminView'),
+
+        // Telemetry & Metrics
+        statAvailableCount: document.getElementById('statAvailableCount'),
+        statReservedCount: document.getElementById('statReservedCount'),
+        statHeldCount: document.getElementById('statHeldCount'),
         statWaitlistCount: document.getElementById('statWaitlistCount'),
-        occupancyRate: document.getElementById('occupancyRate'),
+        statOccupancyPct: document.getElementById('statOccupancyPct'),
         barReserved: document.getElementById('barReserved'),
         barHeld: document.getElementById('barHeld'),
         barAvailable: document.getElementById('barAvailable'),
+
+        // Customer Seating & Booking
         seatGrid: document.getElementById('seatGrid'),
-        btnRefreshSeats: document.getElementById('btnRefreshSeats'),
-        inputUserId: document.getElementById('inputUserId'),
-        selectPriority: document.getElementById('selectPriority'),
-        holdTtlInput: document.getElementById('holdTtlInput'),
+        btnSyncSeats: document.getElementById('btnSyncSeats'),
+        selectedSeatBox: document.getElementById('selectedSeatBox'),
+        summarySeatNum: document.getElementById('summarySeatNum'),
+        summarySeatPrice: document.getElementById('summarySeatPrice'),
+        summarySeatStatus: document.getElementById('summarySeatStatus'),
+        summarySeatTier: document.getElementById('summarySeatTier'),
+        summaryFanName: document.getElementById('summaryFanName'),
+        selectedTierBadge: document.getElementById('selectedTierBadge'),
         btnReserveSeat: document.getElementById('btnReserveSeat'),
         btnHoldSeat: document.getElementById('btnHoldSeat'),
-        btnFlashBurst: document.getElementById('btnFlashBurst'),
-        waitlistContainer: document.getElementById('waitlistContainer'),
-        btnRefreshWaitlist: document.getElementById('btnRefreshWaitlist'),
-        tabWaitlistBadge: document.getElementById('tabWaitlistBadge'),
-        adminInitSeatsInput: document.getElementById('adminInitSeatsInput'),
-        btnAdminInitialize: document.getElementById('btnAdminInitialize'),
-        adminExpandSeatsInput: document.getElementById('adminExpandSeatsInput'),
-        btnAdminExpand: document.getElementById('btnAdminExpand'),
+        holdTimerBox: document.getElementById('holdTimerBox'),
+        holdCountdownVal: document.getElementById('holdCountdownVal'),
+        userWaitlistTier: document.getElementById('userWaitlistTier'),
+        btnJoinWaitlistDirect: document.getElementById('btnJoinWaitlistDirect'),
+        myTicketsContainer: document.getElementById('myTicketsContainer'),
+
+        // Admin Console
+        adminInitCount: document.getElementById('adminInitCount'),
+        btnAdminInitVenue: document.getElementById('btnAdminInitVenue'),
+        adminExpandCount: document.getElementById('adminExpandCount'),
+        btnAdminExpandVenue: document.getElementById('btnAdminExpandVenue'),
         adminReleaseFrom: document.getElementById('adminReleaseFrom'),
         adminReleaseTo: document.getElementById('adminReleaseTo'),
         btnAdminReleaseRange: document.getElementById('btnAdminReleaseRange'),
-        eventFeed: document.getElementById('eventFeed'),
-        btnClearLog: document.getElementById('btnClearLog'),
-        seatModal: document.getElementById('seatModal'),
-        modalSeatTitle: document.getElementById('modalSeatTitle'),
-        modalSeatNumber: document.getElementById('modalSeatNumber'),
-        modalSeatTier: document.getElementById('modalSeatTier'),
-        modalSeatStatus: document.getElementById('modalSeatStatus'),
-        modalOccupantRow: document.getElementById('modalOccupantRow'),
-        modalSeatOccupant: document.getElementById('modalSeatOccupant'),
-        modalActionButtons: document.getElementById('modalActionButtons'),
-        btnCloseModal: document.getElementById('btnCloseModal'),
-        gqlOutput: document.getElementById('gqlOutput'),
-        btnGqlSystemStatus: document.getElementById('btnGqlSystemStatus'),
-        btnGqlSeats: document.getElementById('btnGqlSeats'),
-        btnGqlWaitlist: document.getElementById('btnGqlWaitlist')
+        btnAdminBurstTest: document.getElementById('btnAdminBurstTest'),
+        burstStatusMsg: document.getElementById('burstStatusMsg'),
+        adminWaitlistTableContainer: document.getElementById('adminWaitlistTableContainer'),
+        btnAdminRefreshWaitlist: document.getElementById('btnAdminRefreshWaitlist'),
+
+        // Auth Modal
+        authModal: document.getElementById('authModal'),
+        btnCloseAuthModal: document.getElementById('btnCloseAuthModal'),
+        tabCustomerAuth: document.getElementById('tabCustomerAuth'),
+        tabAdminAuth: document.getElementById('tabAdminAuth'),
+        customerAuthForm: document.getElementById('customerAuthForm'),
+        adminAuthForm: document.getElementById('adminAuthForm'),
+        authFanUserId: document.getElementById('authFanUserId'),
+        authFanPriority: document.getElementById('authFanPriority'),
+        btnSubmitCustomerAuth: document.getElementById('btnSubmitCustomerAuth'),
+        btnSubmitAdminAuth: document.getElementById('btnSubmitAdminAuth'),
+
+        // Activity Drawer & Toasts
+        btnOpenDrawer: document.getElementById('btnOpenDrawer'),
+        btnCloseDrawer: document.getElementById('btnCloseDrawer'),
+        drawerBackdrop: document.getElementById('drawerBackdrop'),
+        drawerFeed: document.getElementById('drawerFeed'),
+        btnClearActivityFeed: document.getElementById('btnClearActivityFeed'),
+        toastContainer: document.getElementById('toastContainer')
     };
 
-    // Helper: Headers for API requests based on selected Auth Role
+    // Helper: Dynamic Tier Details & Pricing
+    function getTierInfo(seatNumber, tierName) {
+        if (tierName === 'VIP' || (seatNumber && seatNumber <= 10)) {
+            return { name: 'VIP Pass', price: '$250.00', className: 'vip', code: 'VIP' };
+        } else if (tierName === 'PREMIUM' || (seatNumber && seatNumber <= 30)) {
+            return { name: 'Premium Center', price: '$120.00', className: 'premium', code: 'PREM' };
+        } else {
+            return { name: 'Standard Arena', price: '$65.00', className: 'standard', code: 'STD' };
+        }
+    }
+
+    // Helper: Headers for REST & GraphQL requests
     function getAuthHeaders(extraHeaders = {}) {
         const headers = {
             'Content-Type': 'application/json',
@@ -74,18 +122,71 @@
             ...extraHeaders
         };
 
-        if (state.authRole === 'dev-admin') {
+        if (state.currentUser.role === 'ADMIN') {
             headers['Authorization'] = 'Bearer dev-admin';
-        } else if (state.authRole === 'dev-vip') {
-            headers['Authorization'] = 'Bearer dev-customer';
-            headers['X-Dev-Priority'] = '3';
+            headers['X-Dev-Role'] = 'ADMIN';
+            headers['X-Dev-User'] = state.currentUser.id;
         } else {
             headers['Authorization'] = 'Bearer dev-customer';
+            headers['X-Dev-Role'] = 'CUSTOMER';
+            headers['X-Dev-User'] = state.currentUser.id;
+            headers['X-Dev-Priority'] = String(state.currentUser.priority || 1);
         }
         return headers;
     }
 
-    // 1. Initialize Real-Time SSE Stream
+    // =========================================================================
+    // 1. Notification Toasts & Activity Logging
+    // =========================================================================
+    function showToast(message, type = 'info', icon = '🎟️') {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        toast.innerHTML = `
+            <span class="toast-icon">${icon}</span>
+            <div style="display: flex; flex-direction: column;">
+                <span class="toast-msg">${message}</span>
+                <span class="toast-time">${time}</span>
+            </div>
+        `;
+
+        el.toastContainer.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100%)';
+            toast.style.transition = 'all 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        }, 4500);
+    }
+
+    function appendDrawerEntry(msg, type = 'INFO') {
+        const entry = document.createElement('div');
+        entry.className = 'drawer-entry';
+        const time = new Date().toLocaleTimeString();
+
+        let color = '#3b82f6';
+        if (type === 'SEAT_RESERVED') color = '#10b981';
+        if (type === 'SEAT_HELD') color = '#f59e0b';
+        if (type === 'CANCEL' || type === 'EXPIRED') color = '#ef4444';
+
+        entry.style.borderLeftColor = color;
+        entry.innerHTML = `
+            <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted);">
+                <span>[${time}]</span>
+                <span style="color: ${color}; font-weight: 700;">${type}</span>
+            </div>
+            <div style="color: var(--text-primary); font-size: 11px;">${msg}</div>
+        `;
+
+        el.drawerFeed.appendChild(entry);
+        el.drawerFeed.scrollTop = el.drawerFeed.scrollHeight;
+    }
+
+    // =========================================================================
+    // 2. Real-Time SSE Stream Integration
+    // =========================================================================
     function initEventStream() {
         if (state.eventSource) {
             state.eventSource.close();
@@ -95,82 +196,63 @@
             state.eventSource = new EventSource('/api/v1/events/stream');
 
             state.eventSource.onopen = function () {
-                updateSseStatus(true, 'SSE Stream Live');
-                logSystemEvent('Connected to real-time SSE stream at /api/v1/events/stream');
+                el.liveStatusBadge.className = 'live-status-pill';
+                el.liveStatusText.textContent = 'Live Inventory Synced';
+                appendDrawerEntry('Real-time SSE event stream connected.', 'CONNECTED');
             };
 
             state.eventSource.addEventListener('INIT', function (e) {
-                logSystemEvent('Stream established: ' + e.data);
+                appendDrawerEntry('Stream handshake initialized: ' + e.data, 'INIT');
             });
 
             state.eventSource.addEventListener('DOMAIN_EVENT', function (e) {
                 try {
                     const event = JSON.parse(e.data);
-                    handleIncomingDomainEvent(event);
+                    handleDomainEvent(event);
                 } catch (err) {
                     console.error('Error parsing domain event:', err);
                 }
             });
 
             state.eventSource.onerror = function () {
-                updateSseStatus(false, 'Reconnecting...');
+                el.liveStatusBadge.className = 'live-status-pill';
+                el.liveStatusBadge.style.borderColor = '#ef4444';
+                el.liveStatusText.textContent = 'Reconnecting...';
             };
         } catch (err) {
             console.error('SSE initialization error:', err);
-            updateSseStatus(false, 'SSE Offline');
         }
     }
 
-    function updateSseStatus(isConnected, text) {
-        if (isConnected) {
-            elements.sseStatusBadge.className = 'status-pill connected';
-        } else {
-            elements.sseStatusBadge.className = 'status-pill disconnected';
-        }
-        elements.sseStatusText.textContent = text;
-    }
+    function handleDomainEvent(event) {
+        const type = event.eventType || 'SYSTEM';
+        const msg = event.message || '';
+        const seatNumber = event.seatNumber ? `#${event.seatNumber}` : '';
+        const user = event.userId ? `(${event.userId})` : '';
 
-    function handleIncomingDomainEvent(event) {
-        appendEventFeed(event);
-        // Automatically sync metrics & seat map on state-changing events
+        appendDrawerEntry(`${msg} ${seatNumber} ${user}`, type);
+
+        // Show context-aware toast notifications
+        if (type === 'SEAT_RESERVED') {
+            showToast(`Confirmed booking for Seat ${seatNumber} ${user}`, 'success', '⚡');
+        } else if (type === 'SEAT_HELD') {
+            showToast(`Seat ${seatNumber} placed on active hold ${user}`, 'warning', '⏱️');
+        } else if (type === 'VENUE_EXPANDED') {
+            showToast(`Venue capacity expanded! Auto-fulfilling waiting customers...`, 'info', '🏟️');
+        } else if (type === 'SEAT_EXPIRED' || type === 'RESERVATION_CANCELLED') {
+            showToast(`Seat ${seatNumber} released back to inventory`, 'info', '🔄');
+        }
+
+        // Live refresh state
         fetchSystemStatus();
         fetchSeats();
         fetchWaitlist();
+        fetchMyTickets();
     }
 
-    function appendEventFeed(event) {
-        const entry = document.createElement('div');
-        entry.className = `event-entry ${event.eventType || 'SYSTEM'}`;
-
-        const time = new Date(event.timestamp || Date.now()).toLocaleTimeString();
-        const badge = `<span class="event-badge ${event.eventType}">${event.eventType}</span>`;
-        const seatInfo = event.seatNumber ? `[Seat #${event.seatNumber}]` : '';
-        const userInfo = event.userId ? `(User: ${event.userId})` : '';
-
-        entry.innerHTML = `
-            <span class="event-time">${time}</span>
-            ${badge}
-            <span class="event-msg">${event.message || ''} ${seatInfo} ${userInfo}</span>
-        `;
-
-        elements.eventFeed.appendChild(entry);
-        elements.eventFeed.scrollTop = elements.eventFeed.scrollHeight;
-    }
-
-    function logSystemEvent(msg) {
-        const entry = document.createElement('div');
-        entry.className = 'event-entry system-msg';
-        const time = new Date().toLocaleTimeString();
-        entry.innerHTML = `
-            <span class="event-time">${time}</span>
-            <span class="event-badge EXPANDED">SYSTEM</span>
-            <span class="event-msg">${msg}</span>
-        `;
-        elements.eventFeed.appendChild(entry);
-        elements.eventFeed.scrollTop = elements.eventFeed.scrollHeight;
-    }
-
-    // 2. Fetch System Status (KPI Cards & Progress Bar)
+    // =========================================================================
+    // 3. Telemetry & Seat Grid Rendering
+    // =========================================================================
     async function fetchSystemStatus() {
         try {
             const res = await fetch('/api/v1/seats/availability');
@@ -179,33 +261,27 @@
             const data = json.data;
             state.systemStatus = data;
 
-            elements.statTotalSeats.textContent = data.totalSeats;
-            elements.statAvailableSeats.textContent = data.availableSeats;
-            elements.statReservedSeats.textContent = data.reservedSeats;
-            elements.statHeldSeats.textContent = data.heldSeats;
-            elements.statWaitlistCount.textContent = data.waitlistCount;
-            elements.tabWaitlistBadge.textContent = data.waitlistCount;
+            el.statAvailableCount.textContent = data.availableSeats;
+            el.statReservedCount.textContent = data.reservedSeats;
+            el.statHeldCount.textContent = data.heldSeats;
+            el.statWaitlistCount.textContent = data.waitlistCount;
 
             const total = data.totalSeats || 1;
-            const availPct = Math.round((data.availableSeats / total) * 100);
-            elements.statAvailablePct.textContent = `${availPct}% inventory available`;
-
             const reservedPct = (data.reservedSeats / total) * 100;
             const heldPct = (data.heldSeats / total) * 100;
-            const availableBarPct = (data.availableSeats / total) * 100;
+            const availablePct = (data.availableSeats / total) * 100;
 
-            elements.barReserved.style.width = `${reservedPct}%`;
-            elements.barHeld.style.width = `${heldPct}%`;
-            elements.barAvailable.style.width = `${availableBarPct}%`;
+            el.barReserved.style.width = `${reservedPct}%`;
+            el.barHeld.style.width = `${heldPct}%`;
+            el.barAvailable.style.width = `${availablePct}%`;
 
             const bookedPct = Math.round(((data.reservedSeats + data.heldSeats) / total) * 100);
-            elements.occupancyRate.textContent = `${bookedPct}% Booked`;
+            el.statOccupancyPct.textContent = `${bookedPct}% Booked (${data.totalSeats} Total)`;
         } catch (err) {
             console.error('Failed to fetch system status:', err);
         }
     }
 
-    // 3. Fetch Seats & Render 2D Grid
     async function fetchSeats() {
         try {
             const res = await fetch('/api/v1/seats');
@@ -220,194 +296,113 @@
     }
 
     function renderSeatGrid(seats) {
-        elements.seatGrid.innerHTML = '';
+        el.seatGrid.innerHTML = '';
 
         if (!seats || seats.length === 0) {
-            elements.seatGrid.innerHTML = '<p class="empty-state">No seats initialized. Go to Admin tab to initialize venue capacity.</p>';
+            el.seatGrid.innerHTML = `
+                <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-secondary);">
+                    <p>🏟️ No seats initialized yet.</p>
+                    <p style="font-size: 12px; margin-top: 6px;">Sign in as Admin to initialize venue capacity.</p>
+                </div>
+            `;
             return;
         }
 
         seats.forEach(seat => {
             const node = document.createElement('div');
-            node.className = `seat-node ${seat.status}`;
-            node.id = `seat-${seat.seatNumber}`;
-            node.dataset.seatNumber = seat.seatNumber;
+            const tierInfo = getTierInfo(seat.seatNumber, seat.tier);
+            const isSelected = state.selectedSeat && state.selectedSeat.seatNumber === seat.seatNumber;
 
-            const tierCode = seat.tier ? seat.tier.substring(0, 3) : 'STD';
+            node.className = `seat-node ${seat.status} ${tierInfo.className} ${isSelected ? 'selected' : ''}`;
+            node.id = `seat-${seat.seatNumber}`;
+
             node.innerHTML = `
                 <span class="seat-num">#${seat.seatNumber}</span>
-                <span class="seat-tier-badge">${tierCode}</span>
+                <span class="seat-price-tag">${tierInfo.code}</span>
             `;
 
-            node.addEventListener('click', () => openSeatModal(seat));
-            elements.seatGrid.appendChild(node);
+            node.title = `Seat #${seat.seatNumber} (${tierInfo.name} - ${tierInfo.price}) - ${seat.status}${seat.occupantUserId ? ' [' + seat.occupantUserId + ']' : ''}`;
+
+            node.addEventListener('click', () => {
+                selectSeat(seat, tierInfo);
+            });
+
+            el.seatGrid.appendChild(node);
         });
     }
 
-    // 4. Fetch Waitlist
-    async function fetchWaitlist() {
-        try {
-            const res = await fetch('/api/v1/waitlist', { headers: getAuthHeaders() });
-            if (!res.ok) return;
-            const json = await res.json();
-            const waitlist = json.data || [];
-            state.waitlist = waitlist;
-            renderWaitlist(waitlist);
-        } catch (err) {
-            console.error('Failed to fetch waitlist:', err);
-        }
-    }
-
-    function renderWaitlist(waitlist) {
-        if (!waitlist || waitlist.length === 0) {
-            elements.waitlistContainer.innerHTML = '<p class="empty-state">No users currently in waitlist.</p>';
-            return;
-        }
-
-        let html = `
-            <table class="waitlist-table">
-                <thead>
-                    <tr>
-                        <th>Pos</th>
-                        <th>User ID</th>
-                        <th>Priority</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-
-        waitlist.forEach(entry => {
-            html += `
-                <tr>
-                    <td class="waitlist-pos">#${entry.queuePosition}</td>
-                    <td><strong>${entry.userId}</strong></td>
-                    <td><span class="badge-priority">Tier ${entry.priority}</span></td>
-                    <td>
-                        <button class="btn-secondary-xs" onclick="window.upgradeUserPriority('${entry.userId}', ${entry.priority + 1})">Promote</button>
-                        <button class="btn-secondary-xs" onclick="window.leaveWaitlist('${entry.userId}')">Exit</button>
-                    </td>
-                </tr>
-            `;
-        });
-
-        html += '</tbody></table>';
-        elements.waitlistContainer.innerHTML = html;
-    }
-
-    // Global Action Helpers for Inline Table Actions
-    window.upgradeUserPriority = async function (userId, newPriority) {
-        const priority = Math.min(5, newPriority);
-        try {
-            const res = await fetch(`/api/v1/waitlist/${userId}`, {
-                method: 'PATCH',
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ newPriority: priority })
-            });
-            if (res.ok) {
-                fetchWaitlist();
-                logSystemEvent(`Promoted ${userId} to Priority Tier ${priority}`);
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    window.leaveWaitlist = async function (userId) {
-        try {
-            const res = await fetch(`/api/v1/waitlist/${userId}`, {
-                method: 'DELETE',
-                headers: getAuthHeaders()
-            });
-            if (res.ok) {
-                fetchWaitlist();
-                fetchSystemStatus();
-                logSystemEvent(`${userId} exited the waitlist.`);
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    // 5. Seat Detail Quick Modal
-    function openSeatModal(seat) {
+    function selectSeat(seat, tierInfo) {
         state.selectedSeat = seat;
-        elements.modalSeatTitle.textContent = `Seat #${seat.seatNumber}`;
-        elements.modalSeatNumber.textContent = `#${seat.seatNumber}`;
-        elements.modalSeatTier.textContent = seat.tier || 'STANDARD';
-        elements.modalSeatStatus.textContent = seat.status;
-        elements.modalSeatStatus.className = `badge-status ${seat.status}`;
+        document.querySelectorAll('.seat-node').forEach(n => n.classList.remove('selected'));
+        const node = document.getElementById(`seat-${seat.seatNumber}`);
+        if (node) node.classList.add('selected');
 
-        if (seat.occupantUserId) {
-            elements.modalOccupantRow.style.display = 'flex';
-            elements.modalSeatOccupant.textContent = seat.occupantUserId;
+        el.summarySeatNum.textContent = `Seat #${seat.seatNumber}`;
+        el.summarySeatPrice.textContent = tierInfo.price;
+        el.summarySeatStatus.textContent = seat.status;
+        el.summarySeatStatus.style.color = seat.status === 'AVAILABLE' ? '#10b981' : (seat.status === 'HELD' ? '#f59e0b' : '#64748b');
+        el.summarySeatTier.textContent = tierInfo.name;
+        el.summaryFanName.textContent = state.currentUser.name;
+
+        el.selectedTierBadge.style.display = 'inline-flex';
+        el.selectedTierBadge.className = `tier-badge-pill ${tierInfo.className}`;
+        el.selectedTierBadge.textContent = tierInfo.name;
+
+        // Button state
+        if (seat.status === 'RESERVED') {
+            el.btnReserveSeat.disabled = true;
+            el.btnReserveSeat.style.opacity = '0.5';
+            el.btnHoldSeat.disabled = true;
+            el.btnHoldSeat.style.opacity = '0.5';
         } else {
-            elements.modalOccupantRow.style.display = 'none';
+            el.btnReserveSeat.disabled = false;
+            el.btnReserveSeat.style.opacity = '1';
+            el.btnHoldSeat.disabled = false;
+            el.btnHoldSeat.style.opacity = '1';
         }
-
-        // Dynamic Action Buttons based on status
-        elements.modalActionButtons.innerHTML = '';
-        if (seat.status === 'AVAILABLE') {
-            const btnBook = document.createElement('button');
-            btnBook.className = 'btn-primary';
-            btnBook.textContent = 'Reserve This Seat';
-            btnBook.onclick = () => {
-                bookSpecificSeat(seat.seatNumber);
-                closeModal();
-            };
-            elements.modalActionButtons.appendChild(btnBook);
-        } else {
-            const btnCancel = document.createElement('button');
-            btnCancel.className = 'btn-danger';
-            btnCancel.textContent = 'Cancel Reservation';
-            btnCancel.onclick = () => {
-                cancelSeat(seat.seatNumber, seat.occupantUserId || elements.inputUserId.value);
-                closeModal();
-            };
-            elements.modalActionButtons.appendChild(btnCancel);
-        }
-
-        elements.seatModal.classList.remove('hidden');
     }
 
-    function closeModal() {
-        elements.seatModal.classList.add('hidden');
-        state.selectedSeat = null;
-    }
-
-    // 6. User Actions (Booking, Hold, Burst)
+    // =========================================================================
+    // 4. Customer Booking & Hold Actions
+    // =========================================================================
     async function reserveSeat() {
-        const userId = elements.inputUserId.value.trim() || 'usr_fan_' + Math.floor(Math.random() * 1000);
-        const priority = parseInt(elements.selectPriority.value, 10) || 1;
+        const userId = state.currentUser.id;
+        const priority = state.currentUser.priority;
 
         try {
+            el.btnReserveSeat.innerHTML = '<span>⏳ Reserving...</span>';
             const res = await fetch('/api/v1/reservations', {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ userId, priority })
             });
             const json = await res.json();
+            el.btnReserveSeat.innerHTML = '<span>⚡ Confirm &amp; Reserve Seat</span>';
+
             if (res.status === 201) {
-                logSystemEvent(`✅ Success! Seat #${json.data.seatNumber} reserved for ${userId}`);
+                showToast(`🎉 Congratulations! Seat #${json.data.seatNumber} booked successfully!`, 'success', '✅');
+                clearHoldTimer();
             } else if (res.status === 202) {
-                logSystemEvent(`⏳ Venue full. ${userId} joined priority waitlist.`);
+                showToast(`⏳ Venue sold out! Added ${userId} to Priority Waitlist.`, 'warning', '⏳');
             } else {
-                logSystemEvent(`⚠️ ${json.detail || json.message || 'Booking error'}`);
+                showToast(`⚠️ ${json.detail || json.message || 'Booking unsuccessful'}`, 'warning');
             }
+
             fetchSystemStatus();
             fetchSeats();
             fetchWaitlist();
+            fetchMyTickets();
         } catch (err) {
             console.error('Reservation error:', err);
+            el.btnReserveSeat.innerHTML = '<span>⚡ Confirm &amp; Reserve Seat</span>';
         }
     }
 
     async function holdSeat() {
-        const userId = elements.inputUserId.value.trim() || 'usr_fan_' + Math.floor(Math.random() * 1000);
-        const priority = parseInt(elements.selectPriority.value, 10) || 1;
-        const ttl = parseInt(elements.holdTtlInput.value, 10) || 60;
+        const userId = state.currentUser.id;
+        const priority = state.currentUser.priority;
+        const ttl = 60; // 60-second hold
 
-        // Use GraphQL hold mutation for hold operation
         const query = `
             mutation {
                 holdSeat(userId: "${userId}", priority: ${priority}, ttlSeconds: ${ttl}) {
@@ -418,52 +413,236 @@
                 }
             }
         `;
+
         try {
+            el.btnHoldSeat.innerHTML = '<span>⏳ Placing Hold...</span>';
             const res = await fetch('/graphql', {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ query })
             });
             const json = await res.json();
+            el.btnHoldSeat.innerHTML = '<span>⏱️ Place 60s Hold</span>';
+
             if (json.data && json.data.holdSeat) {
-                logSystemEvent(`⏱️ Held Seat #${json.data.holdSeat.seatNumber} for ${userId} (TTL ${ttl}s)`);
+                const seatNum = json.data.holdSeat.seatNumber;
+                showToast(`⏱️ Seat #${seatNum} is held for 60 seconds!`, 'warning', '⏱️');
+                startHoldTimer(60);
             } else {
-                logSystemEvent(`⚠️ Hold failed or placed on waitlist.`);
+                showToast('⚠️ Unable to hold seat or venue sold out.', 'warning');
             }
+
             fetchSystemStatus();
             fetchSeats();
             fetchWaitlist();
         } catch (err) {
             console.error('Hold error:', err);
+            el.btnHoldSeat.innerHTML = '<span>⏱️ Place 60s Hold</span>';
         }
     }
 
-    async function bookSpecificSeat(seatNumber) {
-        await reserveSeat();
+    function startHoldTimer(seconds) {
+        clearHoldTimer();
+        state.holdSecondsRemaining = seconds;
+        el.holdTimerBox.classList.add('active');
+        updateHoldTimerDisplay();
+
+        state.holdInterval = setInterval(() => {
+            state.holdSecondsRemaining--;
+            if (state.holdSecondsRemaining <= 0) {
+                clearHoldTimer();
+                showToast('⏱️ Seat hold expired and returned to inventory.', 'info', '🔄');
+                fetchSystemStatus();
+                fetchSeats();
+            } else {
+                updateHoldTimerDisplay();
+            }
+        }, 1000);
     }
 
-    async function cancelSeat(seatNumber, userId) {
+    function updateHoldTimerDisplay() {
+        const mins = Math.floor(state.holdSecondsRemaining / 60);
+        const secs = state.holdSecondsRemaining % 60;
+        el.holdCountdownVal.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    function clearHoldTimer() {
+        if (state.holdInterval) {
+            clearInterval(state.holdInterval);
+            state.holdInterval = null;
+        }
+        el.holdTimerBox.classList.remove('active');
+    }
+
+    // =========================================================================
+    // 5. "My Digital Passes" Render
+    // =========================================================================
+    async function fetchMyTickets() {
+        if (state.currentUser.role === 'ADMIN') {
+            el.myTicketsContainer.innerHTML = `
+                <p style="color: var(--text-muted); font-size: 13px;">
+                    👑 Logged in as Administrator. Switch to Customer mode to view personal digital tickets.
+                </p>
+            `;
+            return;
+        }
+
         try {
-            const res = await fetch(`/api/v1/reservations/${seatNumber}?userId=${encodeURIComponent(userId || '')}`, {
+            const res = await fetch('/api/v1/reservations', { headers: getAuthHeaders() });
+            if (!res.ok) return;
+            const json = await res.json();
+            const allReservations = json.data || [];
+            
+            // Filter reservations belonging to current user
+            const myReservations = allReservations.filter(r => r.userId === state.currentUser.id);
+
+            if (myReservations.length === 0) {
+                el.myTicketsContainer.innerHTML = `
+                    <p style="color: var(--text-muted); font-size: 13px;">
+                        No tickets currently reserved for <strong>${state.currentUser.name}</strong> (${state.currentUser.id}). Select a seat above to book!
+                    </p>
+                `;
+                return;
+            }
+
+            el.myTicketsContainer.innerHTML = '';
+            myReservations.forEach(ticket => {
+                const tierInfo = getTierInfo(ticket.seatNumber, ticket.tier);
+                const card = document.createElement('div');
+                card.className = 'ticket-pass';
+
+                card.innerHTML = `
+                    <div class="ticket-pass-header">
+                        <span class="ticket-event-name">Cyber Symphony 2026</span>
+                        <span class="ticket-tier-tag">${tierInfo.code} PASS</span>
+                    </div>
+                    <div class="ticket-pass-body">
+                        <div>
+                            <div class="ticket-seat-highlight">SEAT #${ticket.seatNumber}</div>
+                            <div class="ticket-holder">Fan: ${state.currentUser.name} (${ticket.userId})</div>
+                            <div style="font-size: 12px; color: #34d399; margin-top: 4px;">● Confirmed Admission</div>
+                        </div>
+                        <div class="ticket-qr-mockup">
+                            <div style="font-family: monospace; font-size: 8px; line-height: 1; text-align: center; color: #000;">
+                                ■■■□■■<br>■□□■□■<br>■■■□■■<br>□□■■□□<br>■■□■■■
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ticket-pass-footer">
+                        <span class="ticket-code">CONF-${ticket.seatNumber}099-TF</span>
+                        <button class="btn-danger" style="padding: 6px 12px; font-size: 11px;" onclick="window.cancelTicket(${ticket.seatNumber})">
+                            Cancel Pass
+                        </button>
+                    </div>
+                `;
+
+                el.myTicketsContainer.appendChild(card);
+            });
+        } catch (err) {
+            console.error('Error fetching user tickets:', err);
+        }
+    }
+
+    window.cancelTicket = async function (seatNumber) {
+        try {
+            const res = await fetch(`/api/v1/reservations/${seatNumber}?userId=${encodeURIComponent(state.currentUser.id)}`, {
                 method: 'DELETE',
                 headers: getAuthHeaders()
             });
-            const json = await res.json();
             if (res.ok) {
-                logSystemEvent(`🗑️ Reservation for Seat #${seatNumber} cancelled.`);
-            } else {
-                logSystemEvent(`⚠️ Cancellation error: ${json.detail || json.message}`);
+                showToast(`Ticket for Seat #${seatNumber} cancelled and refunded.`, 'info', '🗑️');
+                fetchSystemStatus();
+                fetchSeats();
+                fetchMyTickets();
             }
-            fetchSystemStatus();
-            fetchSeats();
-            fetchWaitlist();
         } catch (err) {
             console.error('Cancellation error:', err);
+        }
+    };
+
+    // =========================================================================
+    // 6. Admin Command Operations
+    // =========================================================================
+    async function adminInitialize() {
+        const count = parseInt(el.adminInitCount.value, 10) || 50;
+        try {
+            el.btnAdminInitVenue.innerHTML = '<span>Resetting...</span>';
+            const res = await fetch('/api/v1/seats/initialize', {
+                method: 'POST',
+                headers: getAuthHeaders({ 'Authorization': 'Bearer dev-admin' }),
+                body: JSON.stringify({ seatCount: count })
+            });
+            el.btnAdminInitVenue.innerHTML = '<span>Reset Venue</span>';
+
+            if (res.ok) {
+                showToast(`👑 Venue initialized with ${count} fresh seats!`, 'success', '🏟️');
+                fetchSystemStatus();
+                fetchSeats();
+                fetchWaitlist();
+                fetchMyTickets();
+            }
+        } catch (err) {
+            console.error('Admin initialize error:', err);
+            el.btnAdminInitVenue.innerHTML = '<span>Reset Venue</span>';
+        }
+    }
+
+    async function adminExpand() {
+        const count = parseInt(el.adminExpandCount.value, 10) || 10;
+        try {
+            el.btnAdminExpandVenue.innerHTML = '<span>Adding...</span>';
+            const res = await fetch('/api/v1/seats/expand', {
+                method: 'POST',
+                headers: getAuthHeaders({ 'Authorization': 'Bearer dev-admin' }),
+                body: JSON.stringify({ additionalCount: count })
+            });
+            el.btnAdminExpandVenue.innerHTML = '<span>+ Add Seats</span>';
+
+            if (res.ok) {
+                showToast(`👑 Capacity expanded by +${count} seats! Queue fulfilled.`, 'success', '➕');
+                fetchSystemStatus();
+                fetchSeats();
+                fetchWaitlist();
+                fetchMyTickets();
+            }
+        } catch (err) {
+            console.error('Admin expand error:', err);
+            el.btnAdminExpandVenue.innerHTML = '<span>+ Add Seats</span>';
+        }
+    }
+
+    async function adminReleaseRange() {
+        const from = el.adminReleaseFrom.value.trim();
+        const to = el.adminReleaseTo.value.trim();
+        if (!from || !to) {
+            showToast('Please specify both From and To user handles.', 'warning');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/v1/reservations/release-range', {
+                method: 'POST',
+                headers: getAuthHeaders({ 'Authorization': 'Bearer dev-admin' }),
+                body: JSON.stringify({ fromUserId: from, toUserId: to })
+            });
+            const json = await res.json();
+            if (res.ok) {
+                const count = json.data ? json.data.length : 0;
+                showToast(`👑 Batch released ${count} seats for range [${from}, ${to}].`, 'info', '✂️');
+                fetchSystemStatus();
+                fetchSeats();
+                fetchWaitlist();
+                fetchMyTickets();
+            }
+        } catch (err) {
+            console.error('Admin release range error:', err);
         }
     }
 
     async function simulateFlashBurst() {
-        logSystemEvent('🚀 Firing high-concurrency burst of 10 parallel reservation requests...');
+        el.burstStatusMsg.textContent = 'Firing 10 concurrent requests across virtual threads...';
+        el.btnAdminBurstTest.disabled = true;
+
         const promises = [];
         for (let i = 1; i <= 10; i++) {
             const uid = 'burst_fan_' + Math.floor(Math.random() * 9000 + 1000);
@@ -476,163 +655,254 @@
                 })
             );
         }
+
         await Promise.allSettled(promises);
+        el.burstStatusMsg.textContent = '✅ Burst completed! Inventory updated via Redis & Virtual Threads.';
+        el.btnAdminBurstTest.disabled = false;
         fetchSystemStatus();
         fetchSeats();
         fetchWaitlist();
     }
 
-    // 7. Admin Actions
-    async function adminInitialize() {
-        const count = parseInt(elements.adminInitSeatsInput.value, 10) || 50;
+    async function fetchWaitlist() {
         try {
-            const res = await fetch('/api/v1/seats/initialize', {
-                method: 'POST',
-                headers: getAuthHeaders({ 'Authorization': 'Bearer dev-admin' }),
-                body: JSON.stringify({ seatCount: count })
-            });
-            if (res.ok) {
-                logSystemEvent(`👑 Venue re-initialized with ${count} seats.`);
-                fetchSystemStatus();
-                fetchSeats();
-                fetchWaitlist();
-            }
-        } catch (err) {
-            console.error('Admin initialize error:', err);
-        }
-    }
-
-    async function adminExpand() {
-        const count = parseInt(elements.adminExpandSeatsInput.value, 10) || 10;
-        try {
-            const res = await fetch('/api/v1/seats/expand', {
-                method: 'POST',
-                headers: getAuthHeaders({ 'Authorization': 'Bearer dev-admin' }),
-                body: JSON.stringify({ additionalSeats: count })
-            });
-            if (res.ok) {
-                logSystemEvent(`👑 Expanded capacity by ${count} seats.`);
-                fetchSystemStatus();
-                fetchSeats();
-                fetchWaitlist();
-            }
-        } catch (err) {
-            console.error('Admin expand error:', err);
-        }
-    }
-
-    async function adminReleaseRange() {
-        const from = elements.adminReleaseFrom.value.trim();
-        const to = elements.adminReleaseTo.value.trim();
-        if (!from || !to) return;
-        try {
-            const res = await fetch('/api/v1/reservations/release-range', {
-                method: 'POST',
-                headers: getAuthHeaders({ 'Authorization': 'Bearer dev-admin' }),
-                body: JSON.stringify({ fromUserId: from, toUserId: to })
-            });
+            const res = await fetch('/api/v1/waitlist', { headers: getAuthHeaders() });
+            if (!res.ok) return;
             const json = await res.json();
-            if (res.ok) {
-                logSystemEvent(`👑 Batch released ${json.data ? json.data.length : 0} seats for range [${from}, ${to}].`);
-                fetchSystemStatus();
-                fetchSeats();
-                fetchWaitlist();
-            }
+            const waitlist = json.data || [];
+            state.waitlist = waitlist;
+            renderAdminWaitlist(waitlist);
         } catch (err) {
-            console.error('Admin release range error:', err);
+            console.error('Failed to fetch waitlist:', err);
         }
     }
 
-    // 8. GraphQL Query Buttons
-    async function executeGraphQl(query) {
-        try {
-            elements.gqlOutput.textContent = 'Executing query...';
-            const res = await fetch('/graphql', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query })
-            });
-            const json = await res.json();
-            elements.gqlOutput.textContent = JSON.stringify(json, null, 2);
-        } catch (err) {
-            elements.gqlOutput.textContent = 'GraphQL Error: ' + err.message;
+    function renderAdminWaitlist(waitlist) {
+        if (!waitlist || waitlist.length === 0) {
+            el.adminWaitlistTableContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No users currently on waitlist.</p>';
+            return;
         }
-    }
 
-    // 9. Tab Switching Logic
-    function initTabs() {
-        const tabButtons = document.querySelectorAll('.tab-btn');
-        tabButtons.forEach(btn => {
-            btn.addEventListener('click', () => {
-                tabButtons.forEach(b => b.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        let html = `
+            <table class="waitlist-table">
+                <thead>
+                    <tr>
+                        <th>Queue Pos</th>
+                        <th>User Handle</th>
+                        <th>Priority Tier</th>
+                        <th>Operations</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
 
-                btn.classList.add('active');
-                const target = document.getElementById(btn.dataset.tab);
-                if (target) target.classList.add('active');
-            });
+        waitlist.forEach(entry => {
+            html += `
+                <tr>
+                    <td style="font-weight: 700; color: #60a5fa;">#${entry.queuePosition}</td>
+                    <td><strong>${entry.userId}</strong></td>
+                    <td><span class="tier-badge-pill vip" style="padding: 2px 8px; font-size: 11px;">Tier ${entry.priority}</span></td>
+                    <td>
+                        <button class="preset-btn" style="padding: 4px 8px; font-size: 11px;" onclick="window.promoteWaitlistUser('${entry.userId}', ${entry.priority + 1})">Promote</button>
+                        <button class="btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="window.removeWaitlistUser('${entry.userId}')">Remove</button>
+                    </td>
+                </tr>
+            `;
         });
+
+        html += '</tbody></table>';
+        el.adminWaitlistTableContainer.innerHTML = html;
     }
 
-    // 10. Event Listeners Registration
+    window.promoteWaitlistUser = async function (userId, newPriority) {
+        try {
+            const res = await fetch(`/api/v1/waitlist/${userId}`, {
+                method: 'PATCH',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ newPriority: Math.min(5, newPriority) })
+            });
+            if (res.ok) {
+                showToast(`Promoted ${userId} to higher queue priority`, 'info');
+                fetchWaitlist();
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    window.removeWaitlistUser = async function (userId) {
+        try {
+            const res = await fetch(`/api/v1/waitlist/${userId}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+            if (res.ok) {
+                showToast(`Removed ${userId} from queue`, 'info');
+                fetchWaitlist();
+                fetchSystemStatus();
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    // =========================================================================
+    // 7. Authentication & Profile Management
+    // =========================================================================
+    function updateUserProfileUI() {
+        if (state.currentUser.role === 'ADMIN') {
+            el.navUserAvatar.textContent = '👑';
+            el.navUserAvatar.className = 'user-avatar admin-avatar';
+            el.navUserName.textContent = 'Admin Console';
+            el.navUserRole.textContent = '👑 Venue Operations';
+            el.summaryFanName.textContent = 'Venue Admin';
+            el.tabAdminConsole.style.display = 'inline-flex';
+        } else {
+            el.navUserAvatar.textContent = state.currentUser.name.charAt(0).toUpperCase();
+            el.navUserAvatar.className = 'user-avatar';
+            el.navUserName.textContent = state.currentUser.name;
+            const tierText = state.currentUser.priority === 3 ? '⭐ VIP Member (Tier 3)' : (state.currentUser.priority === 2 ? '💎 Presale Pass (Tier 2)' : '🟢 Standard Fan (Tier 1)');
+            el.navUserRole.textContent = tierText;
+            el.summaryFanName.textContent = state.currentUser.name;
+            el.userWaitlistTier.textContent = `Tier ${state.currentUser.priority}`;
+        }
+    }
+
+    function switchView(viewName) {
+        state.activeView = viewName;
+        if (viewName === 'ADMIN') {
+            el.tabCustomerPortal.classList.remove('active');
+            el.tabAdminConsole.classList.add('active');
+            el.customerView.classList.remove('active');
+            el.adminView.classList.add('active');
+        } else {
+            el.tabAdminConsole.classList.remove('active');
+            el.tabCustomerPortal.classList.add('active');
+            el.adminView.classList.remove('active');
+            el.customerView.classList.add('active');
+        }
+    }
+
+    window.quickSignIn = function (id, name, role, priority) {
+        state.currentUser = { id, name, role, priority };
+        localStorage.setItem('tf_user', JSON.stringify(state.currentUser));
+        updateUserProfileUI();
+        el.authModal.classList.remove('active');
+        showToast(`Signed in as ${name}`, 'success', '👤');
+        fetchMyTickets();
+    };
+
+    function loadSavedUser() {
+        try {
+            const saved = localStorage.getItem('tf_user');
+            if (saved) {
+                state.currentUser = JSON.parse(saved);
+            }
+        } catch (e) {
+            console.error('Error loading saved user:', e);
+        }
+        updateUserProfileUI();
+    }
+
+    // =========================================================================
+    // 8. Event Listeners & Bootstrapping
+    // =========================================================================
     function initEventListeners() {
-        elements.roleSelector.addEventListener('change', (e) => {
-            state.authRole = e.target.value;
-            logSystemEvent(`Switched active role to ${state.authRole}`);
-            if (state.authRole === 'dev-admin') {
-                elements.inputUserId.value = 'dev_admin';
-            } else if (state.authRole === 'dev-vip') {
-                elements.inputUserId.value = 'usr_vip_' + Math.floor(Math.random() * 100);
-                elements.selectPriority.value = '3';
-            } else {
-                elements.inputUserId.value = 'usr_fan_' + Math.floor(Math.random() * 100);
-                elements.selectPriority.value = '1';
+        // Navigation View Tabs
+        el.tabCustomerPortal.addEventListener('click', () => switchView('CUSTOMER'));
+        el.tabAdminConsole.addEventListener('click', () => {
+            if (state.currentUser.role !== 'ADMIN') {
+                // Auto switch to admin or open auth dialog
+                state.currentUser = { id: 'dev_admin', name: 'Administrator', role: 'ADMIN', priority: 3 };
+                updateUserProfileUI();
+                showToast('Switched to Venue Administrator mode', 'info', '👑');
             }
+            switchView('ADMIN');
         });
 
-        elements.btnRefreshSeats.addEventListener('click', () => {
+        // Auth Modal Handlers
+        el.btnUserAccount.addEventListener('click', () => {
+            el.authModal.classList.add('active');
+        });
+
+        el.btnCloseAuthModal.addEventListener('click', () => {
+            el.authModal.classList.remove('active');
+        });
+
+        el.authModal.addEventListener('click', (e) => {
+            if (e.target === el.authModal) el.authModal.classList.remove('active');
+        });
+
+        el.tabCustomerAuth.addEventListener('click', () => {
+            el.tabCustomerAuth.classList.add('active');
+            el.tabAdminAuth.classList.remove('active');
+            el.customerAuthForm.style.display = 'block';
+            el.adminAuthForm.style.display = 'none';
+        });
+
+        el.tabAdminAuth.addEventListener('click', () => {
+            el.tabAdminAuth.classList.add('active');
+            el.tabCustomerAuth.classList.remove('active');
+            el.adminAuthForm.style.display = 'block';
+            el.customerAuthForm.style.display = 'none';
+        });
+
+        el.btnSubmitCustomerAuth.addEventListener('click', () => {
+            const handle = el.authFanUserId.value.trim() || 'usr_fan';
+            const priority = parseInt(el.authFanPriority.value, 10) || 1;
+            window.quickSignIn(handle, handle.replace('usr_', '').toUpperCase(), 'CUSTOMER', priority);
+        });
+
+        el.btnSubmitAdminAuth.addEventListener('click', () => {
+            window.quickSignIn('dev_admin', 'Administrator', 'ADMIN', 3);
+            switchView('ADMIN');
+        });
+
+        // Customer Booking Buttons
+        el.btnSyncSeats.addEventListener('click', () => {
             fetchSystemStatus();
             fetchSeats();
+            showToast('Arena seat map synchronized', 'info', '🔄');
         });
 
-        elements.btnReserveSeat.addEventListener('click', reserveSeat);
-        elements.btnHoldSeat.addEventListener('click', holdSeat);
-        elements.btnFlashBurst.addEventListener('click', simulateFlashBurst);
-        elements.btnRefreshWaitlist.addEventListener('click', fetchWaitlist);
+        el.btnReserveSeat.addEventListener('click', reserveSeat);
+        el.btnHoldSeat.addEventListener('click', holdSeat);
+        el.btnJoinWaitlistDirect.addEventListener('click', reserveSeat);
 
-        elements.btnAdminInitialize.addEventListener('click', adminInitialize);
-        elements.btnAdminExpand.addEventListener('click', adminExpand);
-        elements.btnAdminReleaseRange.addEventListener('click', adminReleaseRange);
+        // Admin Buttons
+        el.btnAdminInitVenue.addEventListener('click', adminInitialize);
+        el.btnAdminExpandVenue.addEventListener('click', adminExpand);
+        el.btnAdminReleaseRange.addEventListener('click', adminReleaseRange);
+        el.btnAdminBurstTest.addEventListener('click', simulateFlashBurst);
+        el.btnAdminRefreshWaitlist.addEventListener('click', fetchWaitlist);
 
-        elements.btnCloseModal.addEventListener('click', closeModal);
-        elements.seatModal.addEventListener('click', (e) => {
-            if (e.target === elements.seatModal) closeModal();
+        // Activity Drawer Handlers
+        el.btnOpenDrawer.addEventListener('click', () => {
+            el.drawerBackdrop.classList.add('active');
         });
 
-        elements.btnClearLog.addEventListener('click', () => {
-            elements.eventFeed.innerHTML = '';
+        el.btnCloseDrawer.addEventListener('click', () => {
+            el.drawerBackdrop.classList.remove('active');
         });
 
-        // GraphQL buttons
-        elements.btnGqlSystemStatus.addEventListener('click', () => {
-            executeGraphQl('query { systemStatus { totalSeats availableSeats heldSeats reservedSeats waitlistCount } }');
+        el.drawerBackdrop.addEventListener('click', (e) => {
+            if (e.target === el.drawerBackdrop) el.drawerBackdrop.classList.remove('active');
         });
-        elements.btnGqlSeats.addEventListener('click', () => {
-            executeGraphQl('query { seats { seatNumber status tier occupantUserId } }');
-        });
-        elements.btnGqlWaitlist.addEventListener('click', () => {
-            executeGraphQl('query { waitlist { queuePosition userId priority status } }');
+
+        el.btnClearActivityFeed.addEventListener('click', () => {
+            el.drawerFeed.innerHTML = '';
         });
     }
 
-    // Initialize Application
+    // App Initialization
     document.addEventListener('DOMContentLoaded', () => {
-        initTabs();
+        loadSavedUser();
         initEventListeners();
         initEventStream();
         fetchSystemStatus();
         fetchSeats();
         fetchWaitlist();
+        fetchMyTickets();
     });
 
 })();
