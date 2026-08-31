@@ -23,8 +23,8 @@
 * ⚡ **Distributed Caching & Rate Limiting**: Redis Cache-Aside layer (`@Cacheable`) and token-bucket bot rate limiter with silent non-blocking in-memory fallback.
 * 🔄 **Real-Time Push (SSE & WebSockets)**: Live seat map status updates via Server-Sent Events (`/api/v1/events/stream`) and GraphQL Subscriptions (`/graphql`).
 * 📊 **GraphQL & REST Dual-Interface**: Full RESTful API with RFC 7807 problem details alongside a schema-first GraphQL engine with GraphiQL IDE.
-* 🔐 **Supabase Identity & RBAC**: Stateless OAuth2 Resource Server verifying JWTs via Supabase JWKS with automated role and claim mapping (`ROLE_ADMIN` vs `ROLE_CUSTOMER`).
-* ⏱️ **Time-Bound Seat Holding (TTL)**: Background scheduler automatically releasing `HELD` seats back into the available pool upon payment timeout.
+* 🔐 **Supabase Identity & RBAC**: Stateless OAuth2 Resource Server verifying JWTs via Supabase JWKS with automated role and claim mapping (`ROLE_ADMIN` vs `ROLE_CUSTOMER`). Every booking operation derives its acting user from the token, and GraphQL resolvers carry per-operation `@PreAuthorize` rules.
+* ⏱️ **Time-Bound Seat Holding (TTL)**: Seats can be held briefly and then confirmed into a booking; a background scheduler releases any hold that is not confirmed before its TTL elapses.
 * 🗄️ **Zero-Drift Migrations**: Flyway version-controlled migrations for PostgreSQL 16 and H2.
 
 ---
@@ -90,6 +90,10 @@ Once the application starts on port `8080`:
 
 ### 📡 RESTful API Endpoints (`/api/v1`)
 
+> **Identity is never supplied by the client.** The acting user and their priority tier are
+> taken from the authenticated JWT, so no endpoint accepts a `userId` for the caller.
+> Endpoints that name a `{userId}` act on *another* user and are therefore admin-only.
+
 | Method & Endpoint | Role | Request Parameters / Body | Response Payload | HTTP Status |
 | :--- | :---: | :--- | :--- | :---: |
 | **`GET /api/v1/seats/availability`** | Public | _None_ | `ApiResponse<SystemStatusResponse>` | `200 OK` |
@@ -97,24 +101,26 @@ Once the application starts on port `8080`:
 | **`GET /api/v1/seats/{seatNumber}`** | Authenticated | Path: `seatNumber: Integer` | `ApiResponse<SeatResponse>` | `200 OK` |
 | **`POST /api/v1/seats/initialize`** | **Admin Only** | Body: `{"seatCount": 100}` | `ApiResponse<SystemStatusResponse>` | `200 OK` |
 | **`POST /api/v1/seats/expand`** | **Admin Only** | Body: `{"additionalCount": 20}` | `ApiResponse<SystemStatusResponse>` | `200 OK` |
-| **`POST /api/v1/reservations`** | Customer | Body: `{"userId": "usr_101", "priority": 3}` | `ApiResponse<ReservationResponse>` | `201 Created` / `202 Accepted` |
-| **`DELETE /api/v1/reservations/{seatNumber}`** | Customer / Admin | Path: `seatNumber`, Query: `?userId=usr_101` | `ApiResponse<Void>` | `200 OK` |
-| **`GET /api/v1/reservations`** | Customer / Admin | _None_ | `ApiResponse<List<ReservationResponse>>` | `200 OK` |
-| **`GET /api/v1/reservations/user/{userId}`** | Customer / Admin | Path: `userId: String` | `ApiResponse<ReservationResponse>` | `200 OK` |
+| **`POST /api/v1/reservations`** | Customer | Body: `{"seatNumber": 42}` _(optional)_ | `ApiResponse<ReservationResponse>` | `201 Created` / `202 Accepted` |
+| **`POST /api/v1/reservations/confirm`** | Customer | _None_ | `ApiResponse<ReservationResponse>` | `200 OK` |
+| **`DELETE /api/v1/reservations/{seatNumber}`** | Customer | Path: `seatNumber` | `ApiResponse<Void>` | `200 OK` |
+| **`GET /api/v1/reservations/me`** | Customer | _None_ | `ApiResponse<ReservationResponse>` | `200 OK` |
+| **`GET /api/v1/reservations`** | **Admin Only** | _None_ | `ApiResponse<List<ReservationResponse>>` | `200 OK` |
+| **`GET /api/v1/reservations/user/{userId}`** | **Admin Only** | Path: `userId: String` | `ApiResponse<ReservationResponse>` | `200 OK` |
 | **`POST /api/v1/reservations/release-range`** | **Admin Only** | Body: `{"fromUserId": "usr_10", "toUserId": "usr_50"}` | `ApiResponse<List<Integer>>` | `200 OK` |
 | **`GET /api/v1/waitlist`** | Customer / Admin | _None_ | `ApiResponse<List<WaitlistResponse>>` | `200 OK` |
-| **`PATCH /api/v1/waitlist/{userId}`** | Customer / Admin | Path: `userId`, Body: `{"newPriority": 3}` | `ApiResponse<Void>` | `200 OK` |
-| **`DELETE /api/v1/waitlist/{userId}`** | Customer / Admin | Path: `userId: String` | `ApiResponse<Void>` | `200 OK` |
+| **`DELETE /api/v1/waitlist`** | Customer | _None_ (removes the caller) | `ApiResponse<Void>` | `200 OK` |
+| **`PATCH /api/v1/waitlist/{userId}`** | **Admin Only** | Path: `userId`, Body: `{"newPriority": 3}` | `ApiResponse<Void>` | `200 OK` |
+| **`DELETE /api/v1/waitlist/{userId}`** | **Admin Only** | Path: `userId: String` | `ApiResponse<Void>` | `200 OK` |
 | **`GET /api/v1/events/stream`** | Public | _None_ (`Accept: text/event-stream`) | Server-Sent Events (SSE) Stream | `200 OK` |
 
 #### 📝 Example REST Request & Response Payloads
 
 ##### 1. Reserve Seat (`POST /api/v1/reservations`)
-* **Request:**
+* **Request:** _(omit `seatNumber` to be allocated the best available seat)_
   ```json
   {
-    "userId": "usr_402",
-    "priority": 3
+    "seatNumber": 14
   }
   ```
 * **Success Response (`201 Created`):**
@@ -142,7 +148,27 @@ Once the application starts on port `8080`:
   }
   ```
 
-##### 2. Venue Availability (`GET /api/v1/seats/availability`)
+##### 2. Hold then Confirm (`POST /api/v1/reservations/confirm`)
+
+A hold reserves a seat temporarily; confirming it before the TTL elapses turns it into a
+booking. An unconfirmed hold is released back to the pool by the TTL scheduler.
+
+* **Response (`200 OK`):**
+  ```json
+  {
+    "success": true,
+    "message": "Seat 14 confirmed",
+    "data": {
+      "id": 14,
+      "seatNumber": 14,
+      "userId": "usr_402",
+      "status": "RESERVED",
+      "expiresAt": null
+    }
+  }
+  ```
+
+##### 3. Venue Availability (`GET /api/v1/seats/availability`)
 * **Response (`200 OK`):**
   ```json
   {
@@ -159,7 +185,7 @@ Once the application starts on port `8080`:
   }
   ```
 
-##### 3. Standard RFC 7807 Error Response (e.g. `409 Conflict`)
+##### 4. Standard RFC 7807 Error Response (e.g. `409 Conflict`)
 ```json
 {
   "type": "https://ticketforge.com/errors/user-already-reserved",
@@ -193,13 +219,29 @@ query GetVenueStatus {
   }
 }
 
-# 2. Reserve a Seat (or Join Waitlist)
+# 2. Reserve a Seat (or Join Waitlist). Omit seatNumber for best available.
+#    The acting user comes from the bearer token, never from arguments.
 mutation BookTicket {
-  reserveSeat(userId: "usr_101", priority: 3) {
+  reserveSeat(seatNumber: 42) {
     seatNumber
     userId
     status
     reservedAt
+  }
+}
+
+# 2b. Hold a seat, then confirm it before the TTL expires
+mutation HoldTicket {
+  holdSeat(ttlSeconds: 120, seatNumber: 42) {
+    seatNumber
+    expiresAt
+  }
+}
+
+mutation ConfirmTicket {
+  confirmHold {
+    seatNumber
+    status
   }
 }
 

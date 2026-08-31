@@ -16,6 +16,7 @@
 | **Phase 6** | REST APIs, SSE & Security | REST controllers, Live SSE (`SseEmitter`), RFC 7807 Global Exception Handler, RBAC filter chain | ✅ Completed | 95 |
 | **Phase 7** | Automated Testing Suite | Multi-tier test suite: DSA invariant tests, Mockito service tests, E2E multi-protocol, 100-thread stress tests | ✅ Completed | 123 |
 | **Phase 8** | Modern UI & Cloud Deploy | Glassmorphism Single-Page Dashboard, Live 2D Seat Map, SSE Event Feed, Docker Compose stack | ✅ Completed | 126 |
+| **Phase 9** | Security & Booking Flow Hardening | Authenticated GraphQL, token-derived identity, per-operation RBAC, credential-verified sign-in, hold confirmation, seat selection | ✅ Completed | 141 |
 
 ---
 
@@ -77,6 +78,16 @@
 - Interactive booking forms, TTL hold sliders, 10-burst flash sale simulator, and waitlist manager
 - Multi-stage `Dockerfile` (Eclipse Temurin 21 JRE, non-root user) & `docker-compose.yml` (App + PostgreSQL 16 + Redis 7)
 - 126 passing automated unit, mock, security, and integration tests
+
+### ✅ Phase 9: Security & Booking Flow Hardening
+- `/graphql` moved behind authentication; it previously sat in the `permitAll()` matcher list, exposing every mutation (including admin-only ones) anonymously
+- Acting user and priority tier derived from the authenticated principal via `SecurityUtils`; `userId` removed from request bodies, paths and query parameters
+- Per-operation `@PreAuthorize` on every GraphQL resolver, since one URL matcher cannot express per-mutation rules
+- Reading or mutating another user's reservation or waitlist entry restricted to `ROLE_ADMIN`; customers use `/reservations/me` and `DELETE /waitlist`
+- Sign-in verifies credentials against Supabase; the previous mock branch accepted any password and inferred admin from the string "admin". Auth config now fails closed when the backend is unreachable
+- `confirmHold` adds the missing `HELD → RESERVED` transition, so a held seat can become a booking instead of only expiring
+- Optional `seatNumber` on reserve/hold makes the seat map functional, returning `409` when the chosen seat is taken
+- Removed the admin burst simulator, which worked only by impersonating fabricated user ids
 
 ---
 

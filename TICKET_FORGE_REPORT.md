@@ -288,16 +288,22 @@ In real-world ticketing scenarios, thousands of concurrent threads compete for l
 
 ## 7. RESTful API Specification & RBAC Matrix
 
+> The acting user is always derived from the authenticated JWT. Endpoints naming a
+> `{userId}` operate on a *different* user and are consequently admin-only.
+
 | Endpoint | Method | Role Allowed | Purpose | Sample Request Body | Sample Response Body | HTTP Status |
 | :--- | :---: | :---: | :--- | :--- | :--- | :---: |
 | `/api/v1/seats/initialize` | `POST` | `ROLE_ADMIN` | Initialize seat inventory | `{"seatCount": 100}` | `{"message": "100 seats initialized", "totalSeats": 100}` | `201 Created` |
 | `/api/v1/seats/availability` | `GET` | `CUSTOMER, ADMIN` | Get available count & waitlist size | _None_ | `{"availableSeats": 18, "waitlistCount": 5, "totalSeats": 100}` | `200 OK` |
-| `/api/v1/reservations` | `POST` | `CUSTOMER, ADMIN` | Reserve a seat or join waitlist | `{"userId": "usr_101", "priority": 3}` | `{"status": "RESERVED", "seatNumber": 12, "userId": "usr_101"}` | `200 OK` / `202 Accepted` |
-| `/api/v1/reservations/{seatNumber}`| `DELETE` | `CUSTOMER (Own), ADMIN` | Cancel reservation (auto-promotes waitlist) | _None_ | `{"message": "Reservation cancelled", "promotedUserId": "usr_205"}` | `200 OK` |
-| `/api/v1/reservations` | `GET` | `CUSTOMER, ADMIN` | List all active reservations | _None_ | `[{"seatNumber": 1, "userId": "usr_101"}, {"seatNumber": 2, "userId": "usr_102"}]` | `200 OK` |
+| `/api/v1/reservations` | `POST` | `CUSTOMER, ADMIN` | Reserve a specific or best-available seat, or join waitlist | `{"seatNumber": 12}` _(optional)_ | `{"status": "RESERVED", "seatNumber": 12, "userId": "usr_101"}` | `201 Created` / `202 Accepted` / `409 Conflict` |
+| `/api/v1/reservations/confirm` | `POST` | `CUSTOMER, ADMIN` | Confirm the caller's hold into a booking | _None_ | `{"status": "RESERVED", "seatNumber": 12, "expiresAt": null}` | `200 OK` |
+| `/api/v1/reservations/{seatNumber}`| `DELETE` | `CUSTOMER (Own)` | Cancel own reservation (auto-promotes waitlist) | _None_ | `{"message": "Reservation cancelled", "promotedUserId": "usr_205"}` | `200 OK` |
+| `/api/v1/reservations/me` | `GET` | `CUSTOMER, ADMIN` | Read the caller's own reservation | _None_ | `{"seatNumber": 1, "userId": "usr_101"}` | `200 OK` |
+| `/api/v1/reservations` | `GET` | `ROLE_ADMIN` | List all active reservations | _None_ | `[{"seatNumber": 1, "userId": "usr_101"}, {"seatNumber": 2, "userId": "usr_102"}]` | `200 OK` |
 | `/api/v1/reservations/release-range`| `POST` | `ROLE_ADMIN` | Batch release user ID range | `{"fromUserId": "10", "toUserId": "25"}` | `{"releasedSeatsCount": 12, "promotedWaitlistCount": 5}` | `200 OK` |
-| `/api/v1/waitlist/{userId}` | `PATCH` | `CUSTOMER (Own), ADMIN` | Update user priority in waitlist | `{"newPriority": 5}` | `{"userId": "usr_302", "newPriority": 5, "updated": true}` | `200 OK` |
-| `/api/v1/waitlist/{userId}` | `DELETE` | `CUSTOMER (Own), ADMIN` | Leave waitlist | _None_ | `{"message": "User removed from waitlist"}` | `204 No Content` |
+| `/api/v1/waitlist` | `DELETE` | `CUSTOMER (Own)` | Leave the waitlist | _None_ | `{"message": "User removed from waitlist"}` | `200 OK` |
+| `/api/v1/waitlist/{userId}` | `PATCH` | `ROLE_ADMIN` | Update another user's waitlist priority | `{"newPriority": 5}` | `{"userId": "usr_302", "newPriority": 5, "updated": true}` | `200 OK` |
+| `/api/v1/waitlist/{userId}` | `DELETE` | `ROLE_ADMIN` | Remove another user from the waitlist | _None_ | `{"message": "User removed from waitlist"}` | `200 OK` |
 | `/api/v1/seats/expand` | `POST` | `ROLE_ADMIN` | Add more seats to total capacity | `{"additionalCount": 20}` | `{"newTotal": 120, "seatsAdded": 20}` | `200 OK` |
 | `/api/v1/events/stream` | `GET` | `CUSTOMER, ADMIN` | Live SSE push updates stream | _None_ | `data: {"type": "SEAT_RESERVED", "seatNumber": 5, "userId": "usr_101"}` | `200 OK (text/event-stream)` |
 
