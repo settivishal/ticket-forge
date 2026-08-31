@@ -42,8 +42,12 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public Static Resources & Web UI
                         .requestMatchers("/", "/index.html", "/styles.css", "/app.js", "/*.ico", "/static/**").permitAll()
+                        // GraphQL execution endpoint exposes the same queries and mutations as the
+                        // REST API (including admin-only operations) and must be authenticated.
+                        // Declared before the permitAll matchers below so it always takes precedence.
+                        .requestMatchers("/graphql", "/graphql/**").authenticated()
                         // Public Swagger UI, OpenAPI docs & GraphiQL IDE
-                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/graphiql/**", "/graphql/**").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/graphiql/**").permitAll()
                         // Public Health & Info Actuator endpoints
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         // Dev H2 Console
