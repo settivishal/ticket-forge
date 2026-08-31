@@ -2,14 +2,15 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { UserProfile } from "./types";
-import { fetchAuthConfig } from "./api";
+import { fetchAuthConfig, AuthConfig } from "./api";
 
 interface AuthContextType {
   currentUser: UserProfile | null;
   token: string | null;
   isAuthModalOpen: boolean;
   authModalMode: "SIGN_IN" | "SIGN_UP" | "ADMIN_LOGIN";
-  authConfig: { isDev: boolean; supabaseUrl: string; supabaseAnonKey: string };
+  authConfig: AuthConfig | null;
+  isAuthReady: boolean;
   openAuthModal: (mode?: "SIGN_IN" | "SIGN_UP" | "ADMIN_LOGIN") => void;
   closeAuthModal: () => void;
   signIn: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
@@ -25,11 +26,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<"SIGN_IN" | "SIGN_UP" | "ADMIN_LOGIN">("SIGN_IN");
-  const [authConfig, setAuthConfig] = useState({ isDev: true, supabaseUrl: "", supabaseAnonKey: "" });
+  // Starts null and stays null if the backend is unreachable, so sign-in fails
+  // closed rather than falling back to the local mock path.
+  const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
     // Load config
-    fetchAuthConfig().then(setAuthConfig);
+    fetchAuthConfig()
+      .then(setAuthConfig)
+      .finally(() => setIsAuthReady(true));
 
     // Restore user session if present
     try {
@@ -50,24 +56,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const closeAuthModal = () => setIsAuthModalOpen(false);
 
   const signIn = async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
-    // If Dev mode or mock
-    if (authConfig.isDev || !authConfig.supabaseUrl) {
-      const isAdm = email.toLowerCase().includes("admin") || pass.toLowerCase().includes("admin");
-      const role = isAdm ? "ADMIN" : "CUSTOMER";
-      const name = email.split("@")[0].toUpperCase();
-      const user: UserProfile = {
-        id: "usr_" + email.split("@")[0],
-        email,
-        name,
-        role,
-        priority: isAdm ? 3 : 2,
-      };
-      setCurrentUser(user);
-      setToken(null);
-      localStorage.setItem("tf_user", JSON.stringify(user));
-      localStorage.removeItem("tf_token");
-      closeAuthModal();
-      return { success: true };
+    if (!authConfig) {
+      return { success: false, error: "Authentication is still initializing. Please try again." };
+    }
+    if (!authConfig.supabaseUrl || !authConfig.supabaseAnonKey) {
+      return { success: false, error: "Authentication is not configured on the server." };
     }
 
     // Supabase GoTrue Auth
@@ -114,20 +107,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     pass: string,
     priority: number
   ): Promise<{ success: boolean; error?: string }> => {
-    if (authConfig.isDev || !authConfig.supabaseUrl) {
-      const user: UserProfile = {
-        id: "usr_" + email.split("@")[0],
-        email,
-        name,
-        role: "CUSTOMER",
-        priority,
-      };
-      setCurrentUser(user);
-      setToken(null);
-      localStorage.setItem("tf_user", JSON.stringify(user));
-      localStorage.removeItem("tf_token");
-      closeAuthModal();
-      return { success: true };
+    if (!authConfig) {
+      return { success: false, error: "Authentication is still initializing. Please try again." };
+    }
+    if (!authConfig.supabaseUrl || !authConfig.supabaseAnonKey) {
+      return { success: false, error: "Authentication is not configured on the server." };
     }
 
     try {
@@ -169,7 +153,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Local development convenience only. The backend reports whether it is running
+  // the dev profile; outside dev this is a no-op, and the backend's real
+  // authorization rules apply regardless of what is cached client-side.
   const demoLogin = (email: string, name: string, role: "CUSTOMER" | "ADMIN", priority: number) => {
+    if (!authConfig?.isDev) {
+      console.warn("demoLogin is only available when the backend runs the dev profile.");
+      return;
+    }
     const user: UserProfile = {
       id: "usr_" + email.split("@")[0],
       email,
@@ -199,6 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthModalOpen,
         authModalMode,
         authConfig,
+        isAuthReady,
         openAuthModal,
         closeAuthModal,
         signIn,

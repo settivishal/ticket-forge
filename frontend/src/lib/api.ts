@@ -256,19 +256,29 @@ export async function removeWaitlistUser(
   }
 }
 
-export async function fetchAuthConfig(): Promise<{
+export interface AuthConfig {
   isDev: boolean;
   supabaseUrl: string;
   supabaseAnonKey: string;
-}> {
+}
+
+/**
+ * Loads authentication configuration from the backend.
+ *
+ * Returns null when the config cannot be determined. Callers must treat null as
+ * "authentication unavailable" and refuse to sign anyone in — defaulting to dev
+ * mode here would let an unreachable backend silently enable the local mock
+ * login path against a production deployment.
+ */
+export async function fetchAuthConfig(): Promise<AuthConfig | null> {
   try {
     const res = await fetch("/api/v1/auth/config");
     if (res.ok) {
       const json = await res.json();
-      return json.data || { isDev: true, supabaseUrl: "", supabaseAnonKey: "" };
+      return json.data ?? null;
     }
   } catch (err) {
     console.warn("Auth config fetch error:", err);
   }
-  return { isDev: true, supabaseUrl: "", supabaseAnonKey: "" };
+  return null;
 }

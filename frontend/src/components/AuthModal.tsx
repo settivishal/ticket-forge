@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth-context";
 import { X, Sparkles, Shield, User, Lock, Mail, ArrowRight } from "lucide-react";
 
 export function AuthModal() {
-  const { isAuthModalOpen, authModalMode, closeAuthModal, signIn, signUp, demoLogin } = useAuth();
+  const { isAuthModalOpen, authModalMode, closeAuthModal, signIn, signUp, demoLogin, authConfig } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"SIGN_IN" | "SIGN_UP" | "ADMIN">(
     authModalMode === "ADMIN_LOGIN" ? "ADMIN" : authModalMode === "SIGN_UP" ? "SIGN_UP" : "SIGN_IN"
@@ -191,6 +191,7 @@ export function AuthModal() {
               </button>
             </form>
 
+            {authConfig?.isDev && (
             <div className="pt-3 border-t border-white/10">
               <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
                 1-Click Quick Demo Profiles:
@@ -218,6 +219,7 @@ export function AuthModal() {
                 </button>
               </div>
             </div>
+            )}
           </div>
         )}
 
@@ -341,6 +343,7 @@ export function AuthModal() {
               </button>
             </form>
 
+            {authConfig?.isDev && (
             <div className="pt-2 text-center">
               <button
                 type="button"
@@ -350,6 +353,7 @@ export function AuthModal() {
                 ⚡ 1-Click Fast Admin Sign In (Demo Mode)
               </button>
             </div>
+            )}
           </div>
         )}
       </div>
