@@ -84,7 +84,7 @@ class TicketForgeServiceMockitoTest {
         // Initialize 1 seat in service
         ticketForgeService.initializeSeats(1);
 
-        ReservationResponse response = ticketForgeService.reserveSeat("usr_mock_1", 2);
+        ReservationResponse response = ticketForgeService.reserveSeat("usr_mock_1", 2, null);
 
         assertThat(response).isNotNull();
         assertThat(response.seatNumber()).isEqualTo(1);
@@ -104,9 +104,9 @@ class TicketForgeServiceMockitoTest {
         when(waitlistRepository.save(any(WaitlistEntry.class))).thenAnswer(i -> i.getArgument(0));
 
         ticketForgeService.initializeSeats(1);
-        ticketForgeService.reserveSeat("usr_first", 1); // consumes only available seat
+        ticketForgeService.reserveSeat("usr_first", 1, null); // consumes only available seat
 
-        ReservationResponse response = ticketForgeService.reserveSeat("usr_wl_mock", 3);
+        ReservationResponse response = ticketForgeService.reserveSeat("usr_wl_mock", 3, null);
 
         assertThat(response).isNull(); // Indicates placed on waitlist
         verify(waitlistRepository, times(1)).save(any(WaitlistEntry.class));
@@ -126,9 +126,9 @@ class TicketForgeServiceMockitoTest {
         when(reservationRepository.save(any(Reservation.class))).thenAnswer(i -> i.getArgument(0));
 
         ticketForgeService.initializeSeats(1);
-        ticketForgeService.reserveSeat("usr_dup", 1);
+        ticketForgeService.reserveSeat("usr_dup", 1, null);
 
-        assertThatThrownBy(() -> ticketForgeService.reserveSeat("usr_dup", 1))
+        assertThatThrownBy(() -> ticketForgeService.reserveSeat("usr_dup", 1, null))
                 .isInstanceOf(UserAlreadyReservedException.class)
                 .hasMessageContaining("already has an active reservation or hold");
     }
@@ -157,10 +157,10 @@ class TicketForgeServiceMockitoTest {
         ticketForgeService.initializeSeats(1);
 
         // usr_1 gets seat 1
-        ticketForgeService.reserveSeat("usr_1", 1);
+        ticketForgeService.reserveSeat("usr_1", 1, null);
 
         // usr_vip enters waitlist with priority 3
-        ticketForgeService.reserveSeat("usr_vip", 3);
+        ticketForgeService.reserveSeat("usr_vip", 3, null);
 
         // Cancel usr_1 reservation
         ticketForgeService.cancelReservation(1, "usr_1");
@@ -179,9 +179,9 @@ class TicketForgeServiceMockitoTest {
         when(waitlistRepository.save(any(WaitlistEntry.class))).thenAnswer(i -> i.getArgument(0));
 
         ticketForgeService.initializeSeats(1);
-        ticketForgeService.reserveSeat("occupant", 1); // fill capacity
+        ticketForgeService.reserveSeat("occupant", 1, null); // fill capacity
 
-        ticketForgeService.reserveSeat("usr_exit", 1); // enters waitlist
+        ticketForgeService.reserveSeat("usr_exit", 1, null); // enters waitlist
 
         boolean exited = ticketForgeService.exitWaitlist("usr_exit");
         assertThat(exited).isTrue();
@@ -197,9 +197,9 @@ class TicketForgeServiceMockitoTest {
         when(waitlistRepository.save(any(WaitlistEntry.class))).thenAnswer(i -> i.getArgument(0));
 
         ticketForgeService.initializeSeats(1);
-        ticketForgeService.reserveSeat("occupant", 1); // fill capacity
+        ticketForgeService.reserveSeat("occupant", 1, null); // fill capacity
 
-        ticketForgeService.reserveSeat("usr_promo", 1); // enters waitlist
+        ticketForgeService.reserveSeat("usr_promo", 1, null); // enters waitlist
 
         WaitlistEntry entry = WaitlistEntry.builder()
                 .id(502L)
@@ -225,10 +225,10 @@ class TicketForgeServiceMockitoTest {
         when(waitlistRepository.save(any(WaitlistEntry.class))).thenAnswer(i -> i.getArgument(0));
 
         ticketForgeService.initializeSeats(1);
-        ticketForgeService.reserveSeat("occupant", 1); // fill capacity
+        ticketForgeService.reserveSeat("occupant", 1, null); // fill capacity
 
         // Place usr_waiting in waitlist
-        ticketForgeService.reserveSeat("usr_waiting", 2);
+        ticketForgeService.reserveSeat("usr_waiting", 2, null);
 
         when(seatRepository.findMaxSeatNumber()).thenReturn(Optional.of(1));
         when(seatRepository.saveAll(anyList())).thenAnswer(i -> i.getArgument(0));

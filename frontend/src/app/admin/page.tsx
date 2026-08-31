@@ -10,7 +10,6 @@ import {
   fetchAdminWaitlist,
   promoteWaitlistUser,
   removeWaitlistUser,
-  reserveSeat,
 } from "@/lib/api";
 import { SystemStatus, WaitlistEntry } from "@/lib/types";
 import {
@@ -18,8 +17,6 @@ import {
   Activity,
   Layers,
   Users,
-  Flame,
-  Zap,
   RefreshCw,
   PlusCircle,
   RotateCcw,
@@ -37,8 +34,6 @@ export default function AdminConsolePage() {
   const [expandCount, setExpandCount] = useState(10);
   const [releaseFrom, setReleaseFrom] = useState("burst_fan_1000");
   const [releaseTo, setReleaseTo] = useState("burst_fan_9999");
-  const [burstStatus, setBurstStatus] = useState<string | null>(null);
-  const [isBursting, setIsBursting] = useState(false);
   const [actionAlert, setActionAlert] = useState<{ text: string; type: "success" | "info" } | null>(null);
 
   const showAlert = (text: string, type: "success" | "info" = "success") => {
@@ -84,14 +79,6 @@ export default function AdminConsolePage() {
     }
   };
 
-  const handlePromoteUser = async (userId: string, currentPriority: number) => {
-    const ok = await promoteWaitlistUser(userId, currentPriority + 1, token, currentUser);
-    if (ok) {
-      showAlert(`⭐ Promoted ${userId} to higher queue priority!`);
-      loadData();
-    }
-  };
-
   const handleRemoveUser = async (userId: string) => {
     const ok = await removeWaitlistUser(userId, token, currentUser);
     if (ok) {
@@ -100,21 +87,12 @@ export default function AdminConsolePage() {
     }
   };
 
-  const handleBurstSimulator = async () => {
-    setIsBursting(true);
-    setBurstStatus("Firing 10 concurrent requests across virtual threads...");
-
-    const promises = [];
-    for (let i = 1; i <= 10; i++) {
-      const uid = "burst_fan_" + Math.floor(Math.random() * 9000 + 1000);
-      const prio = (i % 3) + 1;
-      promises.push(reserveSeat(uid, prio, token, currentUser));
+  const handlePromoteUser = async (userId: string, currentPriority: number) => {
+    const ok = await promoteWaitlistUser(userId, currentPriority + 1, token, currentUser);
+    if (ok) {
+      showAlert(`⭐ Promoted ${userId} to higher queue priority!`);
+      loadData();
     }
-
-    await Promise.allSettled(promises);
-    setBurstStatus("✅ Burst completed! Inventory & waitlist updated in real time.");
-    setIsBursting(false);
-    loadData();
   };
 
   // RBAC Access Guard: If not admin, show barrier
@@ -309,32 +287,6 @@ export default function AdminConsolePage() {
               + Expand Capacity
             </button>
           </div>
-        </div>
-
-        {/* Card C: Flash-Sale Burst Simulator */}
-        <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400">
-              <Flame className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white">Flash-Sale Burst Simulator</h3>
-              <p className="text-[11px] text-slate-400">Fires 10 concurrent requests across virtual threads.</p>
-            </div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-900 text-[11px] text-slate-300 min-h-[40px] flex items-center">
-            {burstStatus || "Ready to fire 10 simultaneous reservations."}
-          </div>
-
-          <button
-            onClick={handleBurstSimulator}
-            disabled={isBursting}
-            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-amber-900/30"
-          >
-            <Zap className="w-4 h-4" />
-            <span>{isBursting ? "Firing Burst..." : "🔥 Trigger Concurrency Burst"}</span>
-          </button>
         </div>
       </div>
 

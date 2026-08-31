@@ -1,12 +1,14 @@
 package com.ticketforge.graphql;
 
 import com.ticketforge.dto.SystemStatusResponse;
+import com.ticketforge.security.SecurityUtils;
 import com.ticketforge.service.TicketForgeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 
 import java.util.List;
@@ -25,6 +27,7 @@ public class SystemStatusGraphQLController {
     }
 
     @MutationMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public SystemStatusResponse initializeSeats(@Argument int count) {
         log.info("GraphQL Mutation: initializeSeats(count={})", count);
         ticketForgeService.initializeSeats(count);
@@ -32,6 +35,7 @@ public class SystemStatusGraphQLController {
     }
 
     @MutationMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public SystemStatusResponse addSeats(@Argument int count) {
         log.info("GraphQL Mutation: addSeats(count={})", count);
         ticketForgeService.addSeats(count);
@@ -39,6 +43,7 @@ public class SystemStatusGraphQLController {
     }
 
     @MutationMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public List<Integer> releaseSeats(@Argument String fromUserId, @Argument String toUserId) {
         log.info("GraphQL Mutation: releaseSeats(fromUserId={}, toUserId={})", fromUserId, toUserId);
         return ticketForgeService.releaseSeats(fromUserId, toUserId);

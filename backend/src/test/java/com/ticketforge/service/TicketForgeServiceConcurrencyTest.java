@@ -50,7 +50,7 @@ class TicketForgeServiceConcurrencyTest {
             executor.submit(() -> {
                 try {
                     startSignal.await(); // Wait for all threads to align
-                    ReservationResponse response = ticketForgeService.reserveSeat(userId, priority);
+                    ReservationResponse response = ticketForgeService.reserveSeat(userId, priority, null);
                     if (response != null) {
                         successfulReservations.incrementAndGet();
                     } else {

@@ -1,12 +1,14 @@
 package com.ticketforge.graphql;
 
 import com.ticketforge.dto.WaitlistResponse;
+import com.ticketforge.security.SecurityUtils;
 import com.ticketforge.service.TicketForgeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 
 import java.util.List;
@@ -25,12 +27,15 @@ public class WaitlistGraphQLController {
     }
 
     @MutationMapping
-    public boolean exitWaitlist(@Argument String userId) {
+    @PreAuthorize("isAuthenticated()")
+    public boolean exitWaitlist() {
+        String userId = SecurityUtils.currentUserId();
         log.info("GraphQL Mutation: exitWaitlist(userId={})", userId);
         return ticketForgeService.exitWaitlist(userId);
     }
 
     @MutationMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public boolean updatePriority(@Argument String userId, @Argument int priority) {
         log.info("GraphQL Mutation: updatePriority(userId={}, priority={})", userId, priority);
         return ticketForgeService.updatePriority(userId, priority);

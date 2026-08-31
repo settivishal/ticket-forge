@@ -78,12 +78,12 @@ class TicketForgeServiceTest {
     @Test
     @DisplayName("Should reserve lowest available seat number in O(log N)")
     void testReserveSeatWhenAvailable() {
-        ReservationResponse res1 = ticketForgeService.reserveSeat("user_101", 1);
+        ReservationResponse res1 = ticketForgeService.reserveSeat("user_101", 1, null);
         assertThat(res1).isNotNull();
         assertThat(res1.userId()).isEqualTo("user_101");
         assertThat(res1.seatNumber()).isEqualTo(1);
 
-        ReservationResponse res2 = ticketForgeService.reserveSeat("user_102", 2);
+        ReservationResponse res2 = ticketForgeService.reserveSeat("user_102", 2, null);
         assertThat(res2).isNotNull();
         assertThat(res2.userId()).isEqualTo("user_102");
         assertThat(res2.seatNumber()).isEqualTo(2);
@@ -98,11 +98,11 @@ class TicketForgeServiceTest {
     void testReserveSeatWhenSoldOutPlacesInWaitlist() {
         // Book all 5 seats
         for (int i = 1; i <= 5; i++) {
-            ticketForgeService.reserveSeat("user_" + i, 1);
+            ticketForgeService.reserveSeat("user_" + i, 1, null);
         }
 
         // 6th user tries to reserve with priority 3 (VIP)
-        ReservationResponse waitlistRes = ticketForgeService.reserveSeat("vip_user_6", 3);
+        ReservationResponse waitlistRes = ticketForgeService.reserveSeat("vip_user_6", 3, null);
         assertThat(waitlistRes).isNull(); // Indicates placed on waitlist
 
         SystemStatusResponse status = ticketForgeService.getSystemStatus();
@@ -120,9 +120,9 @@ class TicketForgeServiceTest {
     @Test
     @DisplayName("Should reject duplicate reservation for same user")
     void testDuplicateReservationRejection() {
-        ticketForgeService.reserveSeat("user_dup", 1);
+        ticketForgeService.reserveSeat("user_dup", 1, null);
 
-        assertThatThrownBy(() -> ticketForgeService.reserveSeat("user_dup", 2))
+        assertThatThrownBy(() -> ticketForgeService.reserveSeat("user_dup", 2, null))
                 .isInstanceOf(UserAlreadyReservedException.class);
     }
 
@@ -130,19 +130,19 @@ class TicketForgeServiceTest {
     @DisplayName("Should reject duplicate waitlist entry for same user")
     void testDuplicateWaitlistRejection() {
         for (int i = 1; i <= 5; i++) {
-            ticketForgeService.reserveSeat("user_" + i, 1);
+            ticketForgeService.reserveSeat("user_" + i, 1, null);
         }
 
-        ticketForgeService.reserveSeat("user_wait", 1);
+        ticketForgeService.reserveSeat("user_wait", 1, null);
 
-        assertThatThrownBy(() -> ticketForgeService.reserveSeat("user_wait", 3))
+        assertThatThrownBy(() -> ticketForgeService.reserveSeat("user_wait", 3, null))
                 .isInstanceOf(UserAlreadyInWaitlistException.class);
     }
 
     @Test
     @DisplayName("Should hold seat with TTL expiration")
     void testHoldSeatWithTtl() {
-        ReservationResponse hold = ticketForgeService.holdSeat("user_hold", 1, 300);
+        ReservationResponse hold = ticketForgeService.holdSeat("user_hold", 1, 300, null);
         assertThat(hold).isNotNull();
         assertThat(hold.expiresAt()).isNotNull();
         assertThat(hold.seatNumber()).isEqualTo(1);
@@ -156,12 +156,12 @@ class TicketForgeServiceTest {
     void testCancelReservationWithAutoPromotion() {
         // Book all 5 seats
         for (int i = 1; i <= 5; i++) {
-            ticketForgeService.reserveSeat("user_" + i, 1);
+            ticketForgeService.reserveSeat("user_" + i, 1, null);
         }
 
         // Add 2 users to waitlist: user_A (priority 1), user_B (priority 3 - VIP)
-        ticketForgeService.reserveSeat("user_A", 1);
-        ticketForgeService.reserveSeat("user_B", 3);
+        ticketForgeService.reserveSeat("user_A", 1, null);
+        ticketForgeService.reserveSeat("user_B", 3, null);
 
         // Cancel user_1's reservation for seat 1
         ticketForgeService.cancelReservation(1, "user_1");
@@ -180,7 +180,7 @@ class TicketForgeServiceTest {
     @Test
     @DisplayName("Should cancel reservation with empty waitlist and return seat to available inventory")
     void testCancelReservationWithEmptyWaitlist() {
-        ticketForgeService.reserveSeat("user_single", 1);
+        ticketForgeService.reserveSeat("user_single", 1, null);
         assertThat(ticketForgeService.getSystemStatus().availableSeats()).isEqualTo(4);
 
         ticketForgeService.cancelReservation(1, "user_single");
@@ -193,9 +193,9 @@ class TicketForgeServiceTest {
     @DisplayName("Should exit waitlist successfully")
     void testExitWaitlist() {
         for (int i = 1; i <= 5; i++) {
-            ticketForgeService.reserveSeat("user_" + i, 1);
+            ticketForgeService.reserveSeat("user_" + i, 1, null);
         }
-        ticketForgeService.reserveSeat("user_wait_exit", 2);
+        ticketForgeService.reserveSeat("user_wait_exit", 2, null);
         assertThat(ticketForgeService.getSystemStatus().waitlistCount()).isEqualTo(1);
 
         boolean removed = ticketForgeService.exitWaitlist("user_wait_exit");
@@ -210,11 +210,11 @@ class TicketForgeServiceTest {
     @DisplayName("Should update priority in waitlist and dynamically re-order queue")
     void testUpdatePriorityInWaitlist() {
         for (int i = 1; i <= 5; i++) {
-            ticketForgeService.reserveSeat("user_" + i, 1);
+            ticketForgeService.reserveSeat("user_" + i, 1, null);
         }
 
-        ticketForgeService.reserveSeat("user_low", 1);
-        ticketForgeService.reserveSeat("user_med", 2);
+        ticketForgeService.reserveSeat("user_low", 1, null);
+        ticketForgeService.reserveSeat("user_med", 2, null);
 
         // Before update: user_med is position 1, user_low is position 2
         List<WaitlistResponse> waitlistBefore = ticketForgeService.getWaitlist();
@@ -235,11 +235,11 @@ class TicketForgeServiceTest {
     void testAddSeatsWithAutoFulfillment() {
         // Book all 5 seats
         for (int i = 1; i <= 5; i++) {
-            ticketForgeService.reserveSeat("user_" + i, 1);
+            ticketForgeService.reserveSeat("user_" + i, 1, null);
         }
 
-        ticketForgeService.reserveSeat("wait_user_1", 2);
-        ticketForgeService.reserveSeat("wait_user_2", 1);
+        ticketForgeService.reserveSeat("wait_user_1", 2, null);
+        ticketForgeService.reserveSeat("wait_user_2", 1, null);
         assertThat(ticketForgeService.getSystemStatus().waitlistCount()).isEqualTo(2);
 
         // Add 3 more seats (seats 6, 7, 8)
@@ -259,9 +259,9 @@ class TicketForgeServiceTest {
     @Test
     @DisplayName("Should release reservations in user range [fromUserId, toUserId] via Red-Black Tree scan")
     void testReleaseSeatsRange() {
-        ticketForgeService.reserveSeat("usr_10", 1);
-        ticketForgeService.reserveSeat("usr_20", 1);
-        ticketForgeService.reserveSeat("usr_30", 1);
+        ticketForgeService.reserveSeat("usr_10", 1, null);
+        ticketForgeService.reserveSeat("usr_20", 1, null);
+        ticketForgeService.reserveSeat("usr_30", 1, null);
 
         List<Integer> released = ticketForgeService.releaseSeats("usr_10", "usr_25");
         assertThat(released).containsExactlyInAnyOrder(1, 2);
@@ -274,8 +274,8 @@ class TicketForgeServiceTest {
     @Test
     @DisplayName("Should hydrate in-memory DSAs from database on startup")
     void testSyncFromDatabase() {
-        ticketForgeService.reserveSeat("usr_sync_1", 1);
-        ticketForgeService.reserveSeat("usr_sync_2", 1);
+        ticketForgeService.reserveSeat("usr_sync_1", 1, null);
+        ticketForgeService.reserveSeat("usr_sync_2", 1, null);
 
         // Manually trigger syncFromDatabase
         ticketForgeService.syncFromDatabase();

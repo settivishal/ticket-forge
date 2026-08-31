@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.graphql.tester.AutoConfigureGraphQlTester;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.graphql.test.tester.GraphQlTester;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
@@ -22,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @AutoConfigureGraphQlTester
 @ActiveProfiles("dev")
+@WithMockUser(username = "gql_admin", roles = "ADMIN")
 class TicketForgeGraphQlTest {
 
     @Autowired
@@ -118,7 +120,7 @@ class TicketForgeGraphQlTest {
     void testMutationReserveSeat() {
         String document = """
             mutation {
-                reserveSeat(userId: "usr_gql_1", priority: 3) {
+                reserveSeat {
                     userId
                     seatNumber
                     tier
@@ -133,7 +135,7 @@ class TicketForgeGraphQlTest {
                 .get();
 
         assertThat(reservation).isNotNull();
-        assertThat(reservation.userId()).isEqualTo("usr_gql_1");
+        assertThat(reservation.userId()).isEqualTo("gql_admin");
         assertThat(reservation.seatNumber()).isEqualTo(1);
 
         SystemStatusResponse status = ticketForgeService.getSystemStatus();
@@ -146,7 +148,7 @@ class TicketForgeGraphQlTest {
     void testMutationHoldSeat() {
         String document = """
             mutation {
-                holdSeat(userId: "usr_gql_hold", priority: 2, ttlSeconds: 120) {
+                holdSeat(ttlSeconds: 120) {
                     userId
                     seatNumber
                     expiresAt
@@ -161,7 +163,7 @@ class TicketForgeGraphQlTest {
                 .get();
 
         assertThat(hold).isNotNull();
-        assertThat(hold.userId()).isEqualTo("usr_gql_hold");
+        assertThat(hold.userId()).isEqualTo("gql_admin");
         assertThat(hold.expiresAt()).isNotNull();
 
         SystemStatusResponse status = ticketForgeService.getSystemStatus();
@@ -171,11 +173,11 @@ class TicketForgeGraphQlTest {
     @Test
     @DisplayName("Mutation: cancelReservation frees seat or cascades to waitlist")
     void testMutationCancelReservation() {
-        ticketForgeService.reserveSeat("usr_gql_cancel", 1);
+        ticketForgeService.reserveSeat("gql_admin", 1, null);
 
         String document = """
             mutation {
-                cancelReservation(seatNumber: 1, userId: "usr_gql_cancel")
+                cancelReservation(seatNumber: 1)
             }
         """;
 
@@ -194,8 +196,8 @@ class TicketForgeGraphQlTest {
     @DisplayName("Query & Mutation: Waitlist flow via GraphQL")
     void testWaitlistFlow() {
         ticketForgeService.initializeSeats(1);
-        ticketForgeService.reserveSeat("usr_first", 1);
-        ticketForgeService.reserveSeat("usr_wait1", 2);
+        ticketForgeService.reserveSeat("usr_first", 1, null);
+        ticketForgeService.reserveSeat("usr_wait1", 2, null);
 
         String queryWaitlistDoc = """
             query {
@@ -230,19 +232,53 @@ class TicketForgeGraphQlTest {
 
         assertThat(updated).isTrue();
 
-        String exitWaitlistDoc = """
+        // exitWaitlist removes the caller, so the waiting user is removed via the service.
+        assertThat(ticketForgeService.exitWaitlist("usr_wait1")).isTrue();
+    }
+
+    @Test
+    @DisplayName("Mutation: confirmHold converts a hold into a confirmed reservation")
+    void testMutationConfirmHold() {
+        ticketForgeService.holdSeat("gql_admin", 1, 120, null);
+
+        String document = """
             mutation {
-                exitWaitlist(userId: "usr_wait1")
+                confirmHold {
+                    userId
+                    seatNumber
+                    expiresAt
+                }
             }
         """;
 
-        Boolean exited = graphQlTester.document(exitWaitlistDoc)
+        ReservationResponse confirmed = graphQlTester.document(document)
                 .execute()
-                .path("exitWaitlist")
-                .entity(Boolean.class)
+                .path("confirmHold")
+                .entity(ReservationResponse.class)
                 .get();
 
-        assertThat(exited).isTrue();
+        assertThat(confirmed.userId()).isEqualTo("gql_admin");
+        assertThat(confirmed.expiresAt()).isNull();
+        assertThat(ticketForgeService.getSystemStatus().heldSeats()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("Mutation: customer cannot invoke admin-only initializeSeats")
+    @WithMockUser(username = "gql_customer", roles = "CUSTOMER")
+    void testCustomerForbiddenOnAdminMutation() {
+        String document = """
+            mutation {
+                initializeSeats(count: 5) {
+                    totalSeats
+                }
+            }
+        """;
+
+        graphQlTester.document(document)
+                .execute()
+                .errors()
+                .expect(error -> error.getErrorType() == org.springframework.graphql.execution.ErrorType.FORBIDDEN)
+                .verify();
     }
 
     @Test
@@ -292,8 +328,8 @@ class TicketForgeGraphQlTest {
     @Test
     @DisplayName("Mutation: releaseSeats batch-releases reservations")
     void testMutationReleaseSeats() {
-        ticketForgeService.reserveSeat("usr_a", 1);
-        ticketForgeService.reserveSeat("usr_b", 1);
+        ticketForgeService.reserveSeat("usr_a", 1, null);
+        ticketForgeService.reserveSeat("usr_b", 1, null);
 
         String document = """
             mutation {

@@ -69,7 +69,7 @@ class RedisCacheIntegrationTest {
         assertThat(cachedWrapper.get()).isEqualTo(status1);
 
         // 2. Reserve a seat - should trigger @CacheEvict
-        ticketForgeService.reserveSeat("usr_cache_1", 1);
+        ticketForgeService.reserveSeat("usr_cache_1", 1, null);
 
         // Verify cache entry was evicted
         assertThat(statusCache.get("status")).isNull();
@@ -101,7 +101,7 @@ class RedisCacheIntegrationTest {
         assertThat(singleSeatCache.get(1)).isNotNull();
 
         // 2. Reserve seat 1
-        ReservationResponse res = ticketForgeService.reserveSeat("usr_seat_cached", 1);
+        ReservationResponse res = ticketForgeService.reserveSeat("usr_seat_cached", 1, null);
         assertThat(res.seatNumber()).isEqualTo(1);
 
         // Verify both caches were evicted
@@ -122,12 +122,12 @@ class RedisCacheIntegrationTest {
 
         // Book all 10 seats
         for (int i = 1; i <= 10; i++) {
-            ticketForgeService.reserveSeat("usr_" + i, 1);
+            ticketForgeService.reserveSeat("usr_" + i, 1, null);
         }
 
         // Add 2 users to waitlist
-        ticketForgeService.reserveSeat("waiter_1", 2);
-        ticketForgeService.reserveSeat("waiter_2", 3);
+        ticketForgeService.reserveSeat("waiter_1", 2, null);
+        ticketForgeService.reserveSeat("waiter_2", 3, null);
 
         // 1. Query waitlist -> populates cache
         List<WaitlistResponse> waitlist = ticketForgeService.getWaitlist();

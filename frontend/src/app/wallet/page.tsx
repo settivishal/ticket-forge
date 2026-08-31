@@ -44,8 +44,7 @@ export default function WalletPage() {
 
   const handleConfirmCancel = async () => {
     if (!cancelModalSeat || !currentUser) return;
-    const userId = currentUser.id || currentUser.email;
-    const ok = await cancelReservation(cancelModalSeat, userId, token, currentUser);
+    const ok = await cancelReservation(cancelModalSeat, token, currentUser);
     setCancelModalSeat(null);
     if (ok) {
       loadTickets();

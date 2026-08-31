@@ -13,6 +13,7 @@ import com.ticketforge.event.TicketForgeEvent;
 import com.ticketforge.exception.InvalidRequestException;
 import com.ticketforge.exception.ReservationNotFoundException;
 import com.ticketforge.exception.SeatNotFoundException;
+import com.ticketforge.exception.SeatUnavailableException;
 import com.ticketforge.exception.UserAlreadyInWaitlistException;
 import com.ticketforge.exception.UserAlreadyReservedException;
 import com.ticketforge.model.Reservation;
@@ -154,8 +155,8 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             @CacheEvict(value = RedisConfig.CACHE_WAITLIST, allEntries = true),
             @CacheEvict(value = RedisConfig.CACHE_RESERVATIONS, allEntries = true)
     })
-    public ReservationResponse reserveSeat(String userId, int priority) {
-        return processSeatReservation(userId, priority, null);
+    public ReservationResponse reserveSeat(String userId, int priority, Integer seatNumber) {
+        return processSeatReservation(userId, priority, null, seatNumber);
     }
 
     @Override
@@ -167,15 +168,15 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             @CacheEvict(value = RedisConfig.CACHE_WAITLIST, allEntries = true),
             @CacheEvict(value = RedisConfig.CACHE_RESERVATIONS, allEntries = true)
     })
-    public ReservationResponse holdSeat(String userId, int priority, int ttlSeconds) {
+    public ReservationResponse holdSeat(String userId, int priority, int ttlSeconds, Integer seatNumber) {
         if (ttlSeconds <= 0) {
             throw new InvalidRequestException("TTL seconds must be greater than 0");
         }
         Instant expiresAt = Instant.now().plusSeconds(ttlSeconds);
-        return processSeatReservation(userId, priority, expiresAt);
+        return processSeatReservation(userId, priority, expiresAt, seatNumber);
     }
 
-    private ReservationResponse processSeatReservation(String userId, int priority, Instant expiresAt) {
+    private ReservationResponse processSeatReservation(String userId, int priority, Instant expiresAt, Integer requestedSeat) {
         return distributedLockManager.executeWithLock(DistributedLockManager.inventoryLockKey(), 10, 15, () -> {
             validateUserNotAlreadyBookedOrWaiting(userId);
 
@@ -183,31 +184,22 @@ public class TicketForgeServiceImpl implements TicketForgeService {
                 throw new InvalidRequestException("Priority must be between 1 and 5. Provided: " + priority);
             }
 
+            // A specific seat was requested: take it only if it is genuinely free, otherwise
+            // fail loudly so the caller can pick again rather than being silently given a
+            // different seat than the one they chose.
+            if (requestedSeat != null) {
+                if (!availableSeatsHeap.containsId(requestedSeat)) {
+                    throw new SeatUnavailableException(
+                            "Seat " + requestedSeat + " is no longer available. Please choose another seat.");
+                }
+                availableSeatsHeap.removeById(requestedSeat);
+                return allocateSeat(userId, requestedSeat, expiresAt);
+            }
+
             // Check if seats are available in memory
             if (!availableSeatsHeap.isEmpty()) {
                 Integer seatNumber = availableSeatsHeap.extractMin();
-
-                Seat seat = seatRepository.findBySeatNumber(seatNumber)
-                        .orElseThrow(() -> new SeatNotFoundException("Seat number " + seatNumber + " not found in database"));
-
-                SeatStatus targetStatus = (expiresAt != null) ? SeatStatus.HELD : SeatStatus.RESERVED;
-                seat.setStatus(targetStatus);
-                seatRepository.save(seat);
-
-                Reservation reservation = Reservation.builder()
-                        .userId(userId)
-                        .seat(seat)
-                        .reservedAt(Instant.now())
-                        .expiresAt(expiresAt)
-                        .build();
-
-                Reservation savedRes = reservationRepository.save(reservation);
-                reservationsTree.insert(userId, seatNumber);
-
-                log.info("User {} successfully allocated seat {} (Status={})", userId, seatNumber, targetStatus);
-                ReservationResponse response = mapToReservationResponse(savedRes);
-                redisEventPublisher.publishEvent(TicketForgeEvent.of(targetStatus.name(), seatNumber, userId, "Seat " + seatNumber + " allocated to user " + userId));
-                return response;
+                return allocateSeat(userId, seatNumber, expiresAt);
             } else {
                 // Venue sold out: add to priority waitlist
                 WaitlistEntry entry = WaitlistEntry.builder()
@@ -224,6 +216,74 @@ public class TicketForgeServiceImpl implements TicketForgeService {
                 redisEventPublisher.publishEvent(TicketForgeEvent.of("WAITLISTED", null, userId, "User " + userId + " added to waitlist (Priority " + priority + ")"));
                 return null; // Signals placement on waitlist
             }
+        });
+    }
+
+    /**
+     * Writes the seat allocation for a user. Callers must already hold the inventory lock
+     * and must have removed the seat from the available heap.
+     */
+    private ReservationResponse allocateSeat(String userId, Integer seatNumber, Instant expiresAt) {
+        Seat seat = seatRepository.findBySeatNumber(seatNumber)
+                .orElseThrow(() -> new SeatNotFoundException("Seat number " + seatNumber + " not found in database"));
+
+        SeatStatus targetStatus = (expiresAt != null) ? SeatStatus.HELD : SeatStatus.RESERVED;
+        seat.setStatus(targetStatus);
+        seatRepository.save(seat);
+
+        Reservation reservation = Reservation.builder()
+                .userId(userId)
+                .seat(seat)
+                .reservedAt(Instant.now())
+                .expiresAt(expiresAt)
+                .build();
+
+        Reservation savedRes = reservationRepository.save(reservation);
+        reservationsTree.insert(userId, seatNumber);
+
+        log.info("User {} successfully allocated seat {} (Status={})", userId, seatNumber, targetStatus);
+        ReservationResponse response = mapToReservationResponse(savedRes);
+        redisEventPublisher.publishEvent(TicketForgeEvent.of(targetStatus.name(), seatNumber, userId, "Seat " + seatNumber + " allocated to user " + userId));
+        return response;
+    }
+
+    @Override
+    @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEATS, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_SEAT, allEntries = true),
+            @CacheEvict(value = RedisConfig.CACHE_RESERVATIONS, allEntries = true)
+    })
+    public ReservationResponse confirmHold(String userId) {
+        return distributedLockManager.executeWithLock(DistributedLockManager.inventoryLockKey(), 10, 15, () -> {
+            Reservation reservation = reservationRepository.findByUserId(userId)
+                    .orElseThrow(() -> new ReservationNotFoundException(
+                            "User " + userId + " has no reservation to confirm"));
+
+            if (reservation.getExpiresAt() == null) {
+                throw new InvalidRequestException(
+                        "Reservation for user " + userId + " is already confirmed");
+            }
+
+            if (reservation.getExpiresAt().isBefore(Instant.now())) {
+                throw new InvalidRequestException(
+                        "The hold for user " + userId + " has expired and can no longer be confirmed");
+            }
+
+            Seat seat = reservation.getSeat();
+            seat.setStatus(SeatStatus.RESERVED);
+            seatRepository.save(seat);
+
+            // Clearing the expiry is what makes this permanent: the TTL scheduler only
+            // reclaims reservations that still carry an expiresAt.
+            reservation.setExpiresAt(null);
+            Reservation confirmed = reservationRepository.save(reservation);
+
+            log.info("User {} confirmed hold on seat {}", userId, seat.getSeatNumber());
+            redisEventPublisher.publishEvent(TicketForgeEvent.of("CONFIRMED", seat.getSeatNumber(), userId,
+                    "User " + userId + " confirmed seat " + seat.getSeatNumber()));
+            return mapToReservationResponse(confirmed);
         });
     }
 

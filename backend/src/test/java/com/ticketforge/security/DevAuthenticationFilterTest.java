@@ -66,10 +66,11 @@ class DevAuthenticationFilterTest {
                         .content(objectMapper.writeValueAsString(initReq)))
                 .andExpect(status().isOk());
 
-        ReservationRequest request = new ReservationRequest("dev_usr_55", 2);
+        ReservationRequest request = new ReservationRequest(null);
 
         mockMvc.perform(post("/api/v1/reservations")
                         .header("Authorization", "Bearer dev-customer")
+                        .header("X-Dev-User", "dev_usr_55")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())

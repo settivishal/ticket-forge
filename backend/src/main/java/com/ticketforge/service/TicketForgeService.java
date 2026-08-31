@@ -17,19 +17,31 @@ public interface TicketForgeService {
 
     /**
      * Attempts to reserve a seat for a user.
-     * If seats are available, assigns the lowest seat number and confirms the reservation.
      * If all seats are occupied, adds the user to the priority waitlist.
      *
-     * @param userId   User ID
-     * @param priority User priority level (higher value = higher priority)
+     * @param userId     User ID
+     * @param priority   User priority level (higher value = higher priority)
+     * @param seatNumber Specific seat to reserve, or null to allocate the lowest available seat
      * @return ReservationResponse if a seat was allocated, or null if placed on waitlist
      */
-    ReservationResponse reserveSeat(String userId, int priority);
+    ReservationResponse reserveSeat(String userId, int priority, Integer seatNumber);
 
     /**
      * Holds a seat with a Time-to-Live (TTL) expiration window.
+     *
+     * @param seatNumber Specific seat to hold, or null to allocate the lowest available seat
      */
-    ReservationResponse holdSeat(String userId, int priority, int ttlSeconds);
+    ReservationResponse holdSeat(String userId, int priority, int ttlSeconds, Integer seatNumber);
+
+    /**
+     * Converts the caller's active hold into a confirmed reservation.
+     * <p>
+     * Without this, a held seat can only ever expire — there is no path from HELD to
+     * RESERVED, so a hold cannot be completed into a booking.
+     *
+     * @return the confirmed reservation
+     */
+    ReservationResponse confirmHold(String userId);
 
     /**
      * Cancels a user's reservation for the specified seat.

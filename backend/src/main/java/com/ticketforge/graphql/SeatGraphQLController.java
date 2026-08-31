@@ -4,6 +4,7 @@ import com.ticketforge.dto.ReservationResponse;
 import com.ticketforge.dto.SeatResponse;
 import com.ticketforge.model.SeatStatus;
 import com.ticketforge.model.SeatTier;
+import com.ticketforge.security.SecurityUtils;
 import com.ticketforge.service.TicketForgeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +13,7 @@ import org.springframework.graphql.data.method.annotation.BatchMapping;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.graphql.data.method.annotation.SchemaMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 
 import java.util.List;
@@ -42,16 +44,30 @@ public class SeatGraphQLController {
     }
 
     @MutationMapping
-    public ReservationResponse reserveSeat(@Argument String userId, @Argument int priority) {
-        log.info("GraphQL Mutation: reserveSeat(userId={}, priority={})", userId, priority);
-        return ticketForgeService.reserveSeat(userId, priority);
+    @PreAuthorize("isAuthenticated()")
+    public ReservationResponse reserveSeat(@Argument Integer seatNumber) {
+        String userId = SecurityUtils.currentUserId();
+        int priority = SecurityUtils.currentPriorityTier();
+        log.info("GraphQL Mutation: reserveSeat(userId={}, priority={}, seatNumber={})", userId, priority, seatNumber);
+        return ticketForgeService.reserveSeat(userId, priority, seatNumber);
     }
 
     @MutationMapping
-    public ReservationResponse holdSeat(@Argument String userId, @Argument int priority, @Argument Integer ttlSeconds) {
+    @PreAuthorize("isAuthenticated()")
+    public ReservationResponse holdSeat(@Argument Integer ttlSeconds, @Argument Integer seatNumber) {
+        String userId = SecurityUtils.currentUserId();
+        int priority = SecurityUtils.currentPriorityTier();
         int ttl = ttlSeconds != null && ttlSeconds > 0 ? ttlSeconds : 300;
-        log.info("GraphQL Mutation: holdSeat(userId={}, priority={}, ttlSeconds={})", userId, priority, ttl);
-        return ticketForgeService.holdSeat(userId, priority, ttl);
+        log.info("GraphQL Mutation: holdSeat(userId={}, priority={}, ttlSeconds={}, seatNumber={})", userId, priority, ttl, seatNumber);
+        return ticketForgeService.holdSeat(userId, priority, ttl, seatNumber);
+    }
+
+    @MutationMapping
+    @PreAuthorize("isAuthenticated()")
+    public ReservationResponse confirmHold() {
+        String userId = SecurityUtils.currentUserId();
+        log.info("GraphQL Mutation: confirmHold(userId={})", userId);
+        return ticketForgeService.confirmHold(userId);
     }
 
     @BatchMapping(typeName = "Seat", field = "occupantUserId")

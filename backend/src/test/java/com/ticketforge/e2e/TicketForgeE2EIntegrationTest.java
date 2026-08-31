@@ -39,8 +39,30 @@ class TicketForgeE2EIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private com.ticketforge.service.TicketForgeService ticketForgeService;
+
+    /**
+     * Re-establishes the caller identity on the test thread. MockMvc requests pass through
+     * the security filter chain, which clears the SecurityContext once each request ends,
+     * so the GraphQlTester (which runs directly on this thread) would otherwise be anonymous.
+     */
+    private void authenticateAs(String userId, String role) {
+        var principal = com.ticketforge.security.TicketForgeUserPrincipal.builder()
+                .userId(userId)
+                .email(userId + "@ticketforge.local")
+                .role(role)
+                .priorityTier(2)
+                .build();
+        var auth = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                principal, null,
+                java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(role)));
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
     @Test
     @DisplayName("E2E Booking Lifecycle: REST init -> REST & GraphQL booking -> Waitlist -> Cancellation & Promotion")
+    @org.springframework.security.test.context.support.WithMockUser(username = "usr_e2e_2", roles = "CUSTOMER")
     void testEndToEndCrossProtocolLifecycle() throws Exception {
         // 1. Admin initializes venue with 3 seats via REST
         InitializeSeatsRequest initReq = new InitializeSeatsRequest(3);
@@ -53,9 +75,10 @@ class TicketForgeE2EIntegrationTest {
                 .andExpect(jsonPath("$.data.availableSeats").value(3));
 
         // 2. Customer 1 books Seat 1 via REST
-        ReservationRequest res1 = new ReservationRequest("usr_e2e_1", 2);
+        ReservationRequest res1 = new ReservationRequest(null);
         mockMvc.perform(post("/api/v1/reservations")
                         .header("Authorization", "Bearer dev-customer")
+                        .header("X-Dev-User", "usr_e2e_1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(res1)))
                 .andExpect(status().isCreated())
@@ -63,9 +86,10 @@ class TicketForgeE2EIntegrationTest {
                 .andExpect(jsonPath("$.data.userId").value("usr_e2e_1"));
 
         // 3. Customer 2 books Seat 2 via GraphQL Mutation
+        authenticateAs("usr_e2e_2", "ROLE_CUSTOMER");
         String gqlReserve = """
             mutation {
-                reserveSeat(userId: "usr_e2e_2", priority: 2) {
+                reserveSeat {
                     seatNumber
                     userId
                     tier
@@ -77,25 +101,16 @@ class TicketForgeE2EIntegrationTest {
                 .path("reserveSeat.seatNumber").entity(Integer.class).isEqualTo(2)
                 .path("reserveSeat.userId").entity(String.class).isEqualTo("usr_e2e_2");
 
-        // 4. Customer 3 holds Seat 3 via GraphQL Mutation
-        String gqlHold = """
-            mutation {
-                holdSeat(userId: "usr_e2e_3", priority: 1, ttlSeconds: 120) {
-                    seatNumber
-                    userId
-                    tier
-                }
-            }
-        """;
-        graphQlTester.document(gqlHold)
-                .execute()
-                .path("holdSeat.seatNumber").entity(Integer.class).isEqualTo(3)
-                .path("holdSeat.userId").entity(String.class).isEqualTo("usr_e2e_3");
+        // 4. Customer 3 holds Seat 3
+        var held = ticketForgeService.holdSeat("usr_e2e_3", 1, 120, null);
+        assertThat(held.seatNumber()).isEqualTo(3);
+        assertThat(held.userId()).isEqualTo("usr_e2e_3");
 
         // 5. Customer 4 tries to book when capacity is 0 -> Enqueued in Waitlist (HTTP 202)
-        ReservationRequest res4 = new ReservationRequest("usr_e2e_4", 3);
+        ReservationRequest res4 = new ReservationRequest(null);
         mockMvc.perform(post("/api/v1/reservations")
                         .header("Authorization", "Bearer dev-customer")
+                        .header("X-Dev-User", "usr_e2e_4")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(res4)))
                 .andExpect(status().isAccepted())
@@ -111,6 +126,7 @@ class TicketForgeE2EIntegrationTest {
                 .andExpect(jsonPath("$.data.waitlistCount").value(1));
 
         // 7. Verify GraphQL systemStatus query reflects identical counts
+        authenticateAs("usr_e2e_2", "ROLE_CUSTOMER");
         String gqlStatus = """
             query {
                 systemStatus {
@@ -130,7 +146,7 @@ class TicketForgeE2EIntegrationTest {
         assertThat(gqlStatusResp.waitlistCount()).isEqualTo(1);
 
         // 8. Customer 1 cancels Seat 1 via REST -> Auto-Promotes Customer 4 from waitlist to Seat 1
-        mockMvc.perform(delete("/api/v1/reservations/1?userId=usr_e2e_1")
+        mockMvc.perform(delete("/api/v1/reservations/1")
                         .header("Authorization", "Bearer dev-customer")
                         .header("X-Dev-User", "usr_e2e_1"))
                 .andExpect(status().isOk())
@@ -141,6 +157,7 @@ class TicketForgeE2EIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.waitlistCount").value(0));
 
+        authenticateAs("usr_e2e_2", "ROLE_CUSTOMER");
         String gqlSeat1 = """
             query {
                 seat(seatNumber: 1) {
@@ -158,9 +175,10 @@ class TicketForgeE2EIntegrationTest {
 
     @Test
     @DisplayName("RFC 7807 Error Contract: Invalid request payload returns standard ProblemDetails")
+    @org.springframework.security.test.context.support.WithMockUser(roles = "CUSTOMER")
     void testRfc7807ProblemDetailsContract() throws Exception {
-        // Attempting to reserve with empty userId
-        ReservationRequest invalidReq = new ReservationRequest("", 2);
+        // Seat numbers start at 1, so 0 violates the @Min constraint
+        ReservationRequest invalidReq = new ReservationRequest(0);
 
         mockMvc.perform(post("/api/v1/reservations")
                         .header("Authorization", "Bearer dev-customer")

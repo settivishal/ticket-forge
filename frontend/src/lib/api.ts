@@ -52,8 +52,7 @@ export async function fetchSeats(token?: string | null, user?: UserProfile | nul
 }
 
 export async function reserveSeat(
-  userId: string,
-  priority: number,
+  seatNumber: number | null,
   token?: string | null,
   user?: UserProfile | null
 ): Promise<{ status: number; data?: ReservationItem; message?: string }> {
@@ -61,7 +60,7 @@ export async function reserveSeat(
     const res = await fetch("/api/v1/reservations", {
       method: "POST",
       headers: getHeaders(token, user),
-      body: JSON.stringify({ userId, priority }),
+      body: JSON.stringify(seatNumber == null ? {} : { seatNumber }),
     });
     const json = await res.json();
     return {
@@ -76,15 +75,16 @@ export async function reserveSeat(
 }
 
 export async function holdSeatGraphQL(
-  userId: string,
-  priority: number,
+  seatNumber: number | null,
   ttlSeconds: number = 60,
   token?: string | null,
   user?: UserProfile | null
 ): Promise<{ success: boolean; seatNumber?: number; message?: string }> {
+  // Passed as GraphQL variables rather than interpolated into the query string, so
+  // values can never alter the shape of the document being sent.
   const query = `
-    mutation {
-      holdSeat(userId: "${userId}", priority: ${priority}, ttlSeconds: ${ttlSeconds}) {
+    mutation HoldSeat($ttlSeconds: Int, $seatNumber: Int) {
+      holdSeat(ttlSeconds: $ttlSeconds, seatNumber: $seatNumber) {
         seatNumber
         userId
         tier
@@ -97,7 +97,7 @@ export async function holdSeatGraphQL(
     const res = await fetch("/graphql", {
       method: "POST",
       headers: getHeaders(token, user),
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query, variables: { ttlSeconds, seatNumber } }),
     });
     const json = await res.json();
     if (json.data && json.data.holdSeat) {
@@ -115,27 +115,44 @@ export async function fetchMyReservations(
   user?: UserProfile | null
 ): Promise<ReservationItem[]> {
   try {
-    const res = await fetch("/api/v1/reservations", {
+    const res = await fetch("/api/v1/reservations/me", {
       headers: getHeaders(token, user),
       cache: "no-store",
     });
     if (!res.ok) return [];
     const json = await res.json();
-    return json.data || [];
+    // A user holds at most one reservation today; the wallet renders a list.
+    return json.data ? [json.data] : [];
   } catch (err) {
     console.error("Error fetching reservations:", err);
     return [];
   }
 }
 
+export async function confirmHold(
+  token?: string | null,
+  user?: UserProfile | null
+): Promise<{ success: boolean; data?: ReservationItem; message?: string }> {
+  try {
+    const res = await fetch("/api/v1/reservations/confirm", {
+      method: "POST",
+      headers: getHeaders(token, user),
+    });
+    const json = await res.json();
+    return { success: res.ok, data: json.data, message: json.message || json.detail };
+  } catch (err) {
+    console.error("Confirm hold error:", err);
+    return { success: false, message: "Network connection error." };
+  }
+}
+
 export async function cancelReservation(
   seatNumber: number,
-  userId: string,
   token?: string | null,
   user?: UserProfile | null
 ): Promise<boolean> {
   try {
-    const res = await fetch(`/api/v1/reservations/${seatNumber}?userId=${encodeURIComponent(userId)}`, {
+    const res = await fetch(`/api/v1/reservations/${seatNumber}`, {
       method: "DELETE",
       headers: getHeaders(token, user),
     });
@@ -245,7 +262,23 @@ export async function removeWaitlistUser(
   user?: UserProfile | null
 ): Promise<boolean> {
   try {
-    const res = await fetch(`/api/v1/waitlist/${userId}`, {
+    const res = await fetch(`/api/v1/waitlist/${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+      headers: getHeaders(token, user),
+    });
+    return res.ok;
+  } catch (err) {
+    console.error(err);
+    return false;
+  }
+}
+
+export async function exitWaitlist(
+  token?: string | null,
+  user?: UserProfile | null
+): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/v1/waitlist`, {
       method: "DELETE",
       headers: getHeaders(token, user),
     });

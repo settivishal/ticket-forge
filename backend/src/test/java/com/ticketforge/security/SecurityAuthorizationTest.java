@@ -57,7 +57,7 @@ class SecurityAuthorizationTest {
     @Test
     @DisplayName("Protected Customer Endpoint: POST /api/v1/reservations rejects unauthenticated request (401)")
     void testUnauthenticatedReservationRejected() throws Exception {
-        ReservationRequest request = new ReservationRequest("anon_user", 1);
+        ReservationRequest request = new ReservationRequest(null);
 
         mockMvc.perform(post("/api/v1/reservations")
                         .contentType(MediaType.APPLICATION_JSON)
