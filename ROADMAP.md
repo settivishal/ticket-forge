@@ -93,10 +93,8 @@
 
 ## 🌿 Git Branching & Promotion Strategy
 
-1. **`feature/<name>`** (e.g. `feature/phase-6-rest-and-security`): Individual feature/task branches. Branch off `dev`.
-2. **`dev`**: Local integration & aggregation branch. Collects and integrates feature branches locally with fast H2/Docker testing.
-3. **`staging`**: Cloud Staging deployment branch. Pull Requests from `dev` $\rightarrow$ `staging` trigger automated Staging deployment & QA tests on Supabase Staging.
-4. **`main`**: Production release branch. Pull Requests from `staging` $\rightarrow$ `main` trigger automated zero-downtime Production deployment on Supabase Prod.
+1. **`feature/<name>`**: Individual feature/task branches. Branch off `main`, open a PR back to `main`. CI runs the full backend test suite on every push and PR.
+2. **`main`**: Release branch. Merging to `main` auto-deploys the backend to Render and the frontend to Vercel, both against the single Supabase project.
 
 ---
 
