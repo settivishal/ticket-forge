@@ -20,3 +20,24 @@ services:
         value: postgres.mksdjnpmljjjrevywutt
       - key: SUPABASE_DB_PASSWORD
         sync: false
+      - key: REDISSON_ENABLED
+        value: true
+      - key: REDIS_SSL
+        value: false
+      - key: REDIS_HOST
+        fromService:
+          type: keyvalue
+          name: ticketforge-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: keyvalue
+          name: ticketforge-redis
+          property: port
+
+  - type: keyvalue
+    name: ticketforge-redis
+    plan: free
+    region: oregon
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []   # internal network only
