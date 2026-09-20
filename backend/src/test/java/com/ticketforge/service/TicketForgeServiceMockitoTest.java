@@ -74,7 +74,7 @@ class TicketForgeServiceMockitoTest {
                 .tier(SeatTier.STANDARD)
                 .build();
 
-        when(seatRepository.findBySeatNumber(1)).thenReturn(Optional.of(seat1));
+        when(seatRepository.findBySeatNumberWithLock(1)).thenReturn(Optional.of(seat1));
         when(reservationRepository.save(any(Reservation.class))).thenAnswer(i -> {
             Reservation r = i.getArgument(0);
             r.setId(101L);
@@ -99,7 +99,7 @@ class TicketForgeServiceMockitoTest {
     @DisplayName("reserveSeat: Enqueues into waitlist when venue is full")
     void testReserveSeatFullCapacityEnqueuesWaitlist() {
         Seat seat1 = Seat.builder().id(1L).seatNumber(1).status(SeatStatus.AVAILABLE).tier(SeatTier.STANDARD).build();
-        when(seatRepository.findBySeatNumber(1)).thenReturn(Optional.of(seat1));
+        when(seatRepository.findBySeatNumberWithLock(1)).thenReturn(Optional.of(seat1));
         when(reservationRepository.save(any(Reservation.class))).thenAnswer(i -> i.getArgument(0));
         when(waitlistRepository.save(any(WaitlistEntry.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -122,7 +122,7 @@ class TicketForgeServiceMockitoTest {
                 .status(SeatStatus.AVAILABLE)
                 .tier(SeatTier.STANDARD)
                 .build();
-        when(seatRepository.findBySeatNumber(1)).thenReturn(Optional.of(seat1));
+        when(seatRepository.findBySeatNumberWithLock(1)).thenReturn(Optional.of(seat1));
         when(reservationRepository.save(any(Reservation.class))).thenAnswer(i -> i.getArgument(0));
 
         ticketForgeService.initializeSeats(1);
@@ -149,7 +149,7 @@ class TicketForgeServiceMockitoTest {
                 .status(SeatStatus.AVAILABLE)
                 .tier(SeatTier.STANDARD)
                 .build();
-        when(seatRepository.findBySeatNumber(1)).thenReturn(Optional.of(seat1));
+        when(seatRepository.findBySeatNumberWithLock(1)).thenReturn(Optional.of(seat1));
         when(reservationRepository.save(any(Reservation.class))).thenAnswer(i -> i.getArgument(0));
         when(waitlistRepository.save(any(WaitlistEntry.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -174,7 +174,7 @@ class TicketForgeServiceMockitoTest {
     @DisplayName("exitWaitlist: Removes user from waitlist and updates status")
     void testExitWaitlist() {
         Seat seat1 = Seat.builder().id(1L).seatNumber(1).status(SeatStatus.AVAILABLE).tier(SeatTier.STANDARD).build();
-        when(seatRepository.findBySeatNumber(1)).thenReturn(Optional.of(seat1));
+        when(seatRepository.findBySeatNumberWithLock(1)).thenReturn(Optional.of(seat1));
         when(reservationRepository.save(any(Reservation.class))).thenAnswer(i -> i.getArgument(0));
         when(waitlistRepository.save(any(WaitlistEntry.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -192,7 +192,7 @@ class TicketForgeServiceMockitoTest {
     @DisplayName("updatePriority: Dynamically adjusts waitlist priority tier in O(log N)")
     void testUpdatePriority() {
         Seat seat1 = Seat.builder().id(1L).seatNumber(1).status(SeatStatus.AVAILABLE).tier(SeatTier.STANDARD).build();
-        when(seatRepository.findBySeatNumber(1)).thenReturn(Optional.of(seat1));
+        when(seatRepository.findBySeatNumberWithLock(1)).thenReturn(Optional.of(seat1));
         when(reservationRepository.save(any(Reservation.class))).thenAnswer(i -> i.getArgument(0));
         when(waitlistRepository.save(any(WaitlistEntry.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -220,7 +220,7 @@ class TicketForgeServiceMockitoTest {
     @DisplayName("addSeats: Expands inventory and auto-fulfills waiting customers")
     void testAddSeatsAutoFulfillsWaitlist() {
         Seat seat1 = Seat.builder().id(1L).seatNumber(1).status(SeatStatus.AVAILABLE).tier(SeatTier.STANDARD).build();
-        when(seatRepository.findBySeatNumber(1)).thenReturn(Optional.of(seat1));
+        when(seatRepository.findBySeatNumberWithLock(1)).thenReturn(Optional.of(seat1));
         when(reservationRepository.save(any(Reservation.class))).thenAnswer(i -> i.getArgument(0));
         when(waitlistRepository.save(any(WaitlistEntry.class))).thenAnswer(i -> i.getArgument(0));
 

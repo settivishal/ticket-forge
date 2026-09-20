@@ -60,6 +60,8 @@ springdoc:
 ticketforge:
   redisson:
     enabled: ${REDISSON_ENABLED:true}
+  ratelimit:
+    rps: ${RATE_LIMIT_RPS:5}   # write requests per second per user (per IP when anonymous)
   ttl:
     cleanup-interval-ms: 5000
     default-hold-seconds: 300

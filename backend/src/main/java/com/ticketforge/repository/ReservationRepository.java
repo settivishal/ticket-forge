@@ -34,7 +34,11 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
     boolean existsBySeat_SeatNumber(Integer seatNumber);
 
-    @Query("SELECT r FROM Reservation r WHERE r.expiresAt IS NOT NULL AND r.expiresAt < :now AND r.seat.status = com.ticketforge.model.SeatStatus.HELD")
+    /**
+     * Eagerly loads the seat so the TTL scheduler, which runs outside a transaction,
+     * can read the seat number without an open session.
+     */
+    @Query("SELECT r FROM Reservation r JOIN FETCH r.seat s WHERE r.expiresAt IS NOT NULL AND r.expiresAt < :now AND s.status = com.ticketforge.model.SeatStatus.HELD")
     List<Reservation> findExpiredHolds(@Param("now") Instant now);
 
     @Query("SELECT r FROM Reservation r WHERE r.userId >= :fromUserId AND r.userId <= :toUserId")

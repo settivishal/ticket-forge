@@ -61,7 +61,7 @@ cd ticket-forge
 
 #### Option A: Quick Start with In-Memory H2 (Dev Profile)
 ```bash
-./mvnw spring-boot:run
+cd backend && ./mvnw spring-boot:run
 ```
 
 #### Option B: Full Stack with Docker Compose (App + PostgreSQL + Redis)
@@ -282,7 +282,7 @@ subscription WatchSeatEvents {
 
 Execute all automated unit tests, MockMvc REST tests, GraphQlTester tests, and concurrency stress tests:
 ```bash
-./mvnw clean test
+cd backend && ./mvnw clean test
 ```
 
 ---

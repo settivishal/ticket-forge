@@ -8,10 +8,18 @@ services:
       - "8080:8080"
     env_file: .env.example
     environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-staging}
+      # prod/staging profiles read SUPABASE_DB_*; point them at the compose postgres
+      - SUPABASE_DB_URL=jdbc:postgresql://db:5432/${POSTGRES_DB}
+      - SUPABASE_DB_USER=${POSTGRES_USER}
+      - SUPABASE_DB_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_SSL=false
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   frontend:
     build: ./frontend

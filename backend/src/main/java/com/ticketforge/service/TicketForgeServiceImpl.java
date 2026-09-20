@@ -205,7 +205,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
                 WaitlistEntry entry = WaitlistEntry.builder()
                         .userId(userId)
                         .priority(priority)
-                        .timestamp(System.nanoTime())
+                        .timestamp(System.currentTimeMillis()) // wall clock: nanoTime origin is per-JVM, breaks FIFO across restarts
                         .status(WaitlistStatus.WAITING)
                         .build();
 
@@ -224,7 +224,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
      * and must have removed the seat from the available heap.
      */
     private ReservationResponse allocateSeat(String userId, Integer seatNumber, Instant expiresAt) {
-        Seat seat = seatRepository.findBySeatNumber(seatNumber)
+        Seat seat = seatRepository.findBySeatNumberWithLock(seatNumber)
                 .orElseThrow(() -> new SeatNotFoundException("Seat number " + seatNumber + " not found in database"));
 
         SeatStatus targetStatus = (expiresAt != null) ? SeatStatus.HELD : SeatStatus.RESERVED;
@@ -313,7 +313,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             reservationRepository.flush();
             reservationsTree.delete(userId);
 
-            Seat seat = seatRepository.findBySeatNumber(seatNumber)
+            Seat seat = seatRepository.findBySeatNumberWithLock(seatNumber)
                     .orElseThrow(() -> new SeatNotFoundException("Seat " + seatNumber + " not found"));
 
             log.info("User {} canceled reservation for seat {}", userId, seatNumber);

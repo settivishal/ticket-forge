@@ -1,6 +1,9 @@
 package com.ticketforge.security;
 
+import com.ticketforge.ratelimit.RateLimitFilter;
+import com.ticketforge.ratelimit.RedisRateLimiterService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -24,6 +27,10 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationConverter jwtAuthenticationConverter;
+    private final RedisRateLimiterService rateLimiterService;
+
+    @Value("${ticketforge.ratelimit.rps:5}")
+    private long rateLimitPerSecond;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private DevAuthenticationFilter devAuthenticationFilter;
@@ -33,6 +40,9 @@ public class SecurityConfig {
         if (devAuthenticationFilter != null) {
             http.addFilterBefore(devAuthenticationFilter, org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class);
         }
+        // After bearer auth so the bucket is keyed by the authenticated user, not the shared IP.
+        http.addFilterAfter(new RateLimitFilter(rateLimiterService, rateLimitPerSecond),
+                org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class);
 
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
