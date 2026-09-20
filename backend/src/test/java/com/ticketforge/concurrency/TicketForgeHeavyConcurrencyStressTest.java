@@ -57,7 +57,7 @@ class TicketForgeHeavyConcurrencyStressTest {
             executor.submit(() -> {
                 try {
                     startLatch.await(); // Wait for all threads to be ready
-                    ReservationResponse res = ticketForgeService.reserveSeat(userId, priority);
+                    ReservationResponse res = ticketForgeService.reserveSeat(userId, priority, null);
                     if (res != null) {
                         successfulReservations.add(res);
                     } else {
@@ -112,12 +112,12 @@ class TicketForgeHeavyConcurrencyStressTest {
 
         // Book all 10 seats
         for (int i = 1; i <= totalSeats; i++) {
-            ticketForgeService.reserveSeat("usr_initial_" + i, 1);
+            ticketForgeService.reserveSeat("usr_initial_" + i, 1, null);
         }
 
         // Enqueue 15 users into waitlist with varying priorities
         for (int i = 1; i <= totalWaitlist; i++) {
-            ticketForgeService.reserveSeat("usr_wait_" + i, (i % 3) + 1);
+            ticketForgeService.reserveSeat("usr_wait_" + i, (i % 3) + 1, null);
         }
 
         // Concurrently cancel 5 seats
@@ -167,11 +167,11 @@ class TicketForgeHeavyConcurrencyStressTest {
         ticketForgeService.initializeSeats(totalSeats);
 
         for (int i = 1; i <= totalSeats; i++) {
-            ticketForgeService.reserveSeat("occupant_" + i, 1);
+            ticketForgeService.reserveSeat("occupant_" + i, 1, null);
         }
 
         for (int i = 1; i <= waitlistUsers; i++) {
-            ticketForgeService.reserveSeat("wl_user_" + i, 1);
+            ticketForgeService.reserveSeat("wl_user_" + i, 1, null);
         }
 
         // Concurrently update priorities for 10 users to VIP (Priority 5)

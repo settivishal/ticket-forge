@@ -41,3 +41,7 @@ bin/
 
 ### Log files ###
 *.log
+
+# local secrets & redis snapshots
+.env
+dump.rdb

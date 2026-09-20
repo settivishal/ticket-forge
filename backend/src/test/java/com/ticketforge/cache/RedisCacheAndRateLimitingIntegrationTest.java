@@ -53,7 +53,7 @@ class RedisCacheAndRateLimitingIntegrationTest {
         assertThat(status1.availableSeats()).isEqualTo(10);
 
         // 2. Booking a seat executes @CacheEvict
-        ReservationResponse res = ticketForgeService.reserveSeat("usr_cache_test", 1);
+        ReservationResponse res = ticketForgeService.reserveSeat("usr_cache_test", 1, null);
         assertThat(res).isNotNull();
 
         // 3. Next call retrieves fresh state with 9 available seats

@@ -55,7 +55,7 @@ class GlobalExceptionHandlerTest {
 
     @Test
     @DisplayName("404 Not Found - querying non-existent user reservation returns RFC 7807 ProblemDetail")
-    @WithMockUser(roles = "CUSTOMER")
+    @WithMockUser(roles = "ADMIN")
     void testReservationNotFoundProblemDetail() throws Exception {
         mockMvc.perform(get("/api/v1/reservations/user/non_existent_user")
                         .contentType(MediaType.APPLICATION_JSON))
@@ -68,7 +68,7 @@ class GlobalExceptionHandlerTest {
     @DisplayName("409 Conflict - duplicate reservation by same user returns RFC 7807 ProblemDetail")
     @WithMockUser(roles = "CUSTOMER")
     void testUserAlreadyReservedProblemDetail() throws Exception {
-        ReservationRequest request = new ReservationRequest("usr_duplicate_1", 1);
+        ReservationRequest request = new ReservationRequest(null);
 
         // First reservation succeeds
         mockMvc.perform(post("/api/v1/reservations")
@@ -104,7 +104,7 @@ class GlobalExceptionHandlerTest {
 
     @Test
     @DisplayName("400 Bad Request - invalid operation returns RFC 7807 ProblemDetail")
-    @WithMockUser(roles = "CUSTOMER")
+    @WithMockUser(roles = "ADMIN")
     void testInvalidRequestProblemDetail() throws Exception {
         UpdatePriorityRequest request = new UpdatePriorityRequest(3);
 

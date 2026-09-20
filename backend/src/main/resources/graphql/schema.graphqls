@@ -67,16 +67,21 @@ type Query {
     seats(status: SeatStatus, tier: SeatTier): [Seat!]!
     seat(seatNumber: Int!): Seat
     reservations: [Reservation!]!
-    reservation(userId: String!): Reservation
+    "The authenticated caller's own reservation."
+    myReservation: Reservation
     waitlist: [WaitlistEntry!]!
 }
 
 type Mutation {
     initializeSeats(count: Int!): SystemStatus!
-    reserveSeat(userId: String!, priority: Int!): Reservation
-    holdSeat(userId: String!, priority: Int!, ttlSeconds: Int): Reservation
-    cancelReservation(seatNumber: Int!, userId: String!): Boolean!
-    exitWaitlist(userId: String!): Boolean!
+    "Reserves seatNumber when given, otherwise the best available seat. Acting user comes from the auth token."
+    reserveSeat(seatNumber: Int): Reservation
+    "Holds seatNumber when given, otherwise the best available seat. Acting user comes from the auth token."
+    holdSeat(ttlSeconds: Int, seatNumber: Int): Reservation
+    "Converts the caller's active hold into a confirmed reservation."
+    confirmHold: Reservation
+    cancelReservation(seatNumber: Int!): Boolean!
+    exitWaitlist: Boolean!
     updatePriority(userId: String!, priority: Int!): Boolean!
     addSeats(count: Int!): SystemStatus!
     releaseSeats(fromUserId: String!, toUserId: String!): [Int!]!

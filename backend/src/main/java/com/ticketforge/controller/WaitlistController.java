@@ -4,6 +4,7 @@ import com.ticketforge.dto.ApiResponse;
 import com.ticketforge.dto.UpdatePriorityRequest;
 import com.ticketforge.dto.WaitlistResponse;
 import com.ticketforge.exception.InvalidRequestException;
+import com.ticketforge.security.SecurityUtils;
 import com.ticketforge.service.TicketForgeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -11,6 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -41,7 +43,10 @@ public class WaitlistController {
     }
 
     @PatchMapping("/{userId}")
-    @Operation(summary = "Update waitlist priority", description = "Updates a user's priority level in the waitlist in O(log N) time")
+    @Operation(summary = "Update waitlist priority",
+            description = "Updates a user's priority level in the waitlist in O(log N) time. "
+                    + "Admin only: priority determines queue position, so customers must not set their own.")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> updatePriority(
             @PathVariable String userId,
             @Valid @RequestBody UpdatePriorityRequest request) {
@@ -53,10 +58,24 @@ public class WaitlistController {
         return ResponseEntity.ok(ApiResponse.success("Priority updated to " + request.newPriority() + " for user " + userId));
     }
 
-    @DeleteMapping("/{userId}")
-    @Operation(summary = "Exit waitlist", description = "Removes a user from the priority waitlist")
-    public ResponseEntity<ApiResponse<Void>> exitWaitlist(@PathVariable String userId) {
+    @DeleteMapping
+    @Operation(summary = "Exit waitlist", description = "Removes the authenticated caller from the priority waitlist")
+    public ResponseEntity<ApiResponse<Void>> exitWaitlist() {
+        String userId = SecurityUtils.currentUserId();
         log.info("REST: Removing userId={} from waitlist", userId);
+        boolean removed = ticketForgeService.exitWaitlist(userId);
+        if (!removed) {
+            throw new InvalidRequestException("User '" + userId + "' is not currently in the waitlist");
+        }
+        return ResponseEntity.ok(ApiResponse.success("User " + userId + " removed from waitlist"));
+    }
+
+    @DeleteMapping("/{userId}")
+    @Operation(summary = "Remove a user from the waitlist",
+            description = "Removes any user from the priority waitlist (admin only)")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> removeFromWaitlist(@PathVariable String userId) {
+        log.info("REST: Admin removing userId={} from waitlist", userId);
         boolean removed = ticketForgeService.exitWaitlist(userId);
         if (!removed) {
             throw new InvalidRequestException("User '" + userId + "' is not currently in the waitlist");

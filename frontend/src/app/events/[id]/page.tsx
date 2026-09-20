@@ -4,7 +4,7 @@ import React, { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { FEATURED_EVENTS } from "@/lib/events-data";
 import { useAuth } from "@/lib/auth-context";
-import { fetchSeats, fetchSystemStatus, reserveSeat, holdSeatGraphQL } from "@/lib/api";
+import { fetchSeats, fetchSystemStatus, reserveSeat, holdSeatGraphQL, confirmHold } from "@/lib/api";
 import { SeatItem, SystemStatus, EventItem, DomainEvent } from "@/lib/types";
 import confetti from "canvas-confetti";
 import {
@@ -35,6 +35,8 @@ export default function EventBookingPage({ params }: { params: Promise<{ id: str
   const [selectedSeat, setSelectedSeat] = useState<SeatItem | null>(null);
   const [isReserving, setIsReserving] = useState(false);
   const [isHolding, setIsHolding] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [heldSeatNumber, setHeldSeatNumber] = useState<number | null>(null);
 
   // Hold Timer state
   const [holdSecondsRemaining, setHoldSecondsRemaining] = useState<number>(0);
@@ -130,10 +132,8 @@ export default function EventBookingPage({ params }: { params: Promise<{ id: str
     }
 
     setIsReserving(true);
-    const userId = currentUser.id || currentUser.email;
-    const priority = currentUser.priority || 1;
-
-    const res = await reserveSeat(userId, priority, token, currentUser);
+    // Send the seat the user actually clicked; null means "best available".
+    const res = await reserveSeat(selectedSeat?.seatNumber ?? null, token, currentUser);
     setIsReserving(false);
 
     if (res.status === 201 && res.data) {
@@ -152,7 +152,7 @@ export default function EventBookingPage({ params }: { params: Promise<{ id: str
       showToast(`🎉 Seat #${res.data.seatNumber} reserved successfully!`, "success");
       loadData();
     } else if (res.status === 202) {
-      showToast(`⏳ Venue sold out! Added ${userId} to Priority Waitlist.`, "warning");
+      showToast(`⏳ Venue sold out! You have been added to the Priority Waitlist.`, "warning");
       loadData();
     } else {
       showToast(res.message || "Reservation failed.", "warning");
@@ -166,18 +166,38 @@ export default function EventBookingPage({ params }: { params: Promise<{ id: str
     }
 
     setIsHolding(true);
-    const userId = currentUser.id || currentUser.email;
-    const priority = currentUser.priority || 1;
-
-    const res = await holdSeatGraphQL(userId, priority, 60, token, currentUser);
+    const res = await holdSeatGraphQL(selectedSeat?.seatNumber ?? null, 60, token, currentUser);
     setIsHolding(false);
 
     if (res.success && res.seatNumber) {
+      setHeldSeatNumber(res.seatNumber);
       setHoldSecondsRemaining(60);
-      showToast(`⏱️ Seat #${res.seatNumber} held for 60 seconds!`, "warning");
+      showToast(`⏱️ Seat #${res.seatNumber} held for 60 seconds — confirm to complete your booking.`, "warning");
       loadData();
     } else {
       showToast(res.message || "Unable to hold seat.", "warning");
+    }
+  };
+
+  const handleConfirmHold = async () => {
+    setIsConfirming(true);
+    const res = await confirmHold(token, currentUser);
+    setIsConfirming(false);
+
+    if (res.success && res.data) {
+      const tierInfo = getSeatTierDetails(res.data.seatNumber, res.data.tier);
+      setConfirmedReservation({
+        seatNumber: res.data.seatNumber,
+        tier: tierInfo.name,
+        price: tierInfo.price + tierInfo.fee + tierInfo.tax,
+      });
+      setHoldSecondsRemaining(0);
+      setHeldSeatNumber(null);
+      confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+      showToast(`🎉 Seat #${res.data.seatNumber} confirmed!`, "success");
+      loadData();
+    } else {
+      showToast(res.message || "Unable to confirm hold.", "warning");
     }
   };
 
@@ -405,14 +425,29 @@ export default function EventBookingPage({ params }: { params: Promise<{ id: str
 
                 {/* Action Buttons */}
                 <div className="space-y-2.5 pt-2">
-                  <button
-                    onClick={handleReserve}
-                    disabled={isReserving}
-                    className="w-full py-3.5 btn-electric rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30"
-                  >
-                    <span>{isReserving ? "Processing Reservation..." : "⚡ Confirm & Reserve Seat"}</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+                  {holdSecondsRemaining > 0 && heldSeatNumber ? (
+                    <button
+                      onClick={handleConfirmHold}
+                      disabled={isConfirming}
+                      className="w-full py-3.5 btn-electric rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30"
+                    >
+                      <span>
+                        {isConfirming
+                          ? "Confirming..."
+                          : `✅ Complete Purchase — Seat #${heldSeatNumber}`}
+                      </span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleReserve}
+                      disabled={isReserving}
+                      className="w-full py-3.5 btn-electric rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30"
+                    >
+                      <span>{isReserving ? "Processing Reservation..." : "⚡ Confirm & Reserve Seat"}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  )}
 
                   <button
                     onClick={handleHold}

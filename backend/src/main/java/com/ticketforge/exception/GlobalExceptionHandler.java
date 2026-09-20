@@ -60,6 +60,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(SeatUnavailableException.class)
+    public ProblemDetail handleSeatUnavailable(SeatUnavailableException ex) {
+        log.warn("Seat unavailable: {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Seat Unavailable");
+        problem.setType(URI.create("https://ticketforge.com/errors/seat-unavailable"));
+        problem.setProperty(TIMESTAMP_KEY, Instant.now());
+        return problem;
+    }
+
     @ExceptionHandler(UserAlreadyInWaitlistException.class)
     public ProblemDetail handleUserAlreadyInWaitlist(UserAlreadyInWaitlistException ex) {
         log.warn("Waitlist conflict: {}", ex.getMessage());

@@ -57,7 +57,7 @@ class SecurityAuthorizationTest {
     @Test
     @DisplayName("Protected Customer Endpoint: POST /api/v1/reservations rejects unauthenticated request (401)")
     void testUnauthenticatedReservationRejected() throws Exception {
-        ReservationRequest request = new ReservationRequest("anon_user", 1);
+        ReservationRequest request = new ReservationRequest(null);
 
         mockMvc.perform(post("/api/v1/reservations")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -119,5 +119,39 @@ class SecurityAuthorizationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    @DisplayName("GraphQL: unauthenticated mutation on /graphql is rejected (401)")
+    void testUnauthenticatedGraphQlMutationRejected() throws Exception {
+        String mutation = "{\"query\":\"mutation { initializeSeats(count: 1) { totalSeats } }\"}";
+
+        mockMvc.perform(post("/graphql")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mutation))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("GraphQL: unauthenticated query on /graphql is rejected (401)")
+    void testUnauthenticatedGraphQlQueryRejected() throws Exception {
+        String query = "{\"query\":\"query { systemStatus { totalSeats } }\"}";
+
+        mockMvc.perform(post("/graphql")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(query))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("GraphQL: authenticated query on /graphql is permitted (200)")
+    @WithMockUser(roles = "CUSTOMER")
+    void testAuthenticatedGraphQlQueryPermitted() throws Exception {
+        String query = "{\"query\":\"query { systemStatus { totalSeats } }\"}";
+
+        mockMvc.perform(post("/graphql")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(query))
+                .andExpect(status().isOk());
     }
 }

@@ -35,8 +35,8 @@ class WaitlistControllerTest {
     @BeforeEach
     void setUp() {
         ticketForgeService.initializeSeats(1);
-        ticketForgeService.reserveSeat("usr_held_1", 1); // fills the only seat
-        ticketForgeService.reserveSeat("usr_wl_1", 1);   // enters waitlist
+        ticketForgeService.reserveSeat("usr_held_1", 1, null); // fills the only seat
+        ticketForgeService.reserveSeat("usr_wl_1", 1, null);   // enters waitlist
     }
 
     @Test
@@ -53,8 +53,8 @@ class WaitlistControllerTest {
     }
 
     @Test
-    @DisplayName("PATCH /api/v1/waitlist/{userId} - updates waitlist priority")
-    @WithMockUser(roles = "CUSTOMER")
+    @DisplayName("PATCH /api/v1/waitlist/{userId} - Admin updates waitlist priority")
+    @WithMockUser(roles = "ADMIN")
     void testUpdatePriority() throws Exception {
         UpdatePriorityRequest request = new UpdatePriorityRequest(3);
 
@@ -67,13 +67,44 @@ class WaitlistControllerTest {
     }
 
     @Test
-    @DisplayName("DELETE /api/v1/waitlist/{userId} - removes user from waitlist")
+    @DisplayName("PATCH /api/v1/waitlist/{userId} - Customer cannot change priority (403)")
     @WithMockUser(roles = "CUSTOMER")
+    void testUpdatePriorityAsCustomerForbidden() throws Exception {
+        UpdatePriorityRequest request = new UpdatePriorityRequest(5);
+
+        mockMvc.perform(patch("/api/v1/waitlist/usr_wl_1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/v1/waitlist - caller removes themselves from the waitlist")
+    @WithMockUser(username = "usr_wl_1", roles = "CUSTOMER")
     void testExitWaitlist() throws Exception {
-        mockMvc.perform(delete("/api/v1/waitlist/usr_wl_1")
+        mockMvc.perform(delete("/api/v1/waitlist")
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message", containsString("removed from waitlist")));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/v1/waitlist/{userId} - Customer cannot remove another user (403)")
+    @WithMockUser(roles = "CUSTOMER")
+    void testRemoveOtherUserAsCustomerForbidden() throws Exception {
+        mockMvc.perform(delete("/api/v1/waitlist/usr_wl_1")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/v1/waitlist/{userId} - Admin removes any user from the waitlist")
+    @WithMockUser(roles = "ADMIN")
+    void testAdminRemovesUserFromWaitlist() throws Exception {
+        mockMvc.perform(delete("/api/v1/waitlist/usr_wl_1")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 }

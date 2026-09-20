@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -27,10 +26,18 @@ public class TicketHoldTtlScheduler {
     private final TicketForgeService ticketForgeService;
 
     /**
-     * Periodically runs every 5 seconds to scan for expired temporary holds.
+     * Periodically scans for expired temporary holds.
+     * <p>
+     * Deliberately NOT {@code @Transactional}.
+     * <p>
+     * {@code cancelReservation} is itself transactional with REQUIRED propagation. If this
+     * method opened a transaction, every cancellation would join it, and the first failure
+     * would mark that shared transaction rollback-only — discarding the work done for holds
+     * that had already succeeded, while the non-transactional in-memory structures kept
+     * their mutations. Running without an outer transaction gives each cancellation its own,
+     * so a per-item failure stays contained.
      */
     @Scheduled(fixedRateString = "${ticketforge.ttl.cleanup-interval-ms:5000}")
-    @Transactional
     public int processExpiredHolds() {
         Instant now = Instant.now();
         List<Reservation> expiredHolds = reservationRepository.findExpiredHolds(now);
@@ -55,7 +62,12 @@ public class TicketHoldTtlScheduler {
             }
         }
 
-        log.info("Successfully cleaned up and reallocated {} expired seat hold(s)", processedCount);
+        if (processedCount < expiredHolds.size()) {
+            log.warn("Released {} of {} expired seat hold(s); {} failed and will be retried on the next run",
+                    processedCount, expiredHolds.size(), expiredHolds.size() - processedCount);
+        } else {
+            log.info("Successfully cleaned up and reallocated {} expired seat hold(s)", processedCount);
+        }
         return processedCount;
     }
 }
