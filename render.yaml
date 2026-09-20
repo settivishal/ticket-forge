@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ticketforge-staging
+    name: ticketforge
     runtime: docker
     dockerContext: backend
     dockerfilePath: backend/Dockerfile
