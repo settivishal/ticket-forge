@@ -6,7 +6,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --silent
 
-# Copy source and build
+# Copy source and build. next.config.ts rewrites are resolved at build time,
+# so the backend URL must be a build arg, not a runtime env var.
+ARG NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
+ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
 COPY . .
 RUN npm run build
 
