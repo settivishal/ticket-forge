@@ -38,7 +38,7 @@ public class WaitlistController {
     @GetMapping
     @Operation(summary = "Get priority waitlist", description = "Retrieves active waitlist queue ordered by priority tier (descending) and timestamp (FIFO)")
     public ResponseEntity<ApiResponse<List<WaitlistResponse>>> getWaitlist() {
-        List<WaitlistResponse> waitlist = ticketForgeService.getWaitlist();
+        List<WaitlistResponse> waitlist = ticketForgeService.getWaitlist().stream().map(WaitlistResponse::visibleToCaller).toList();
         return ResponseEntity.ok(ApiResponse.success("Retrieved " + waitlist.size() + " waitlist entries", waitlist));
     }
 

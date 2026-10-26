@@ -61,14 +61,14 @@ public class SeatController {
     @GetMapping
     @Operation(summary = "List all seats", description = "Retrieves all seats with status, tier, and assigned user ID")
     public ResponseEntity<ApiResponse<List<SeatResponse>>> getAllSeats() {
-        List<SeatResponse> seats = ticketForgeService.getAllSeats();
+        List<SeatResponse> seats = ticketForgeService.getAllSeats().stream().map(SeatResponse::visibleToCaller).toList();
         return ResponseEntity.ok(ApiResponse.success("Retrieved " + seats.size() + " seats", seats));
     }
 
     @GetMapping("/{seatNumber}")
     @Operation(summary = "Get seat details", description = "Retrieves status and details of a specific seat number")
     public ResponseEntity<ApiResponse<SeatResponse>> getSeatByNumber(@PathVariable int seatNumber) {
-        SeatResponse seat = ticketForgeService.getSeatByNumber(seatNumber);
+        SeatResponse seat = ticketForgeService.getSeatByNumber(seatNumber).visibleToCaller();
         return ResponseEntity.ok(ApiResponse.success("Seat " + seatNumber + " details retrieved", seat));
     }
 }

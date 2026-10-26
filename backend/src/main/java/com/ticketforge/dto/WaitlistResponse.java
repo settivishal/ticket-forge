@@ -1,6 +1,7 @@
 package com.ticketforge.dto;
 
 import com.ticketforge.model.WaitlistStatus;
+import com.ticketforge.security.SecurityUtils;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Representation of a user's position in the priority waitlist queue")
@@ -23,4 +24,8 @@ public record WaitlistResponse(
         @Schema(description = "Calculated position in the priority queue (1-based)", example = "1")
         Integer queuePosition
 ) {
+    /** Copy with the user hidden unless the caller is that user or an admin. */
+    public WaitlistResponse visibleToCaller() {
+        return new WaitlistResponse(id, SecurityUtils.visibleUserId(userId), priority, timestamp, status, queuePosition);
+    }
 }

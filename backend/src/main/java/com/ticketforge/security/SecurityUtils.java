@@ -67,6 +67,18 @@ public final class SecurityUtils {
         return principal.getPriorityTier();
     }
 
+    /**
+     * Returns {@code userId} only if the caller may see it: admins see everyone, customers
+     * see only themselves. Lets shared (cached) responses be filtered per caller.
+     */
+    public static String visibleUserId(String userId) {
+        if (userId == null || isAdmin()) {
+            return userId;
+        }
+        TicketForgeUserPrincipal me = currentPrincipal();
+        return me != null && userId.equals(me.getUserId()) ? userId : null;
+    }
+
     public static boolean isAdmin() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {

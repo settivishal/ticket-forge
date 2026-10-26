@@ -65,7 +65,6 @@ export interface WaitlistEntry {
 export interface DomainEvent {
   eventType: "SEAT_RESERVED" | "SEAT_HELD" | "SEAT_EXPIRED" | "RESERVATION_CANCELLED" | "VENUE_EXPANDED" | "SYSTEM";
   seatNumber?: number;
-  userId?: string;
   message?: string;
   timestamp?: string;
 }

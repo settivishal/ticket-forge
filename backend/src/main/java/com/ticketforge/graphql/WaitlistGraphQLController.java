@@ -23,7 +23,7 @@ public class WaitlistGraphQLController {
     @QueryMapping
     public List<WaitlistResponse> waitlist() {
         log.debug("GraphQL Query: waitlist");
-        return ticketForgeService.getWaitlist();
+        return ticketForgeService.getWaitlist().stream().map(WaitlistResponse::visibleToCaller).toList();
     }
 
     @MutationMapping

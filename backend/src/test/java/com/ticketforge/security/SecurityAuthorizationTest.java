@@ -17,6 +17,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -152,6 +153,33 @@ class SecurityAuthorizationTest {
         mockMvc.perform(post("/graphql")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(query))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Privacy: a seat's occupant is visible only to that occupant and to admins")
+    void testSeatOccupantHiddenFromOtherCustomers() throws Exception {
+        ticketForgeService.reserveSeat("alice", 1, 1);
+
+        mockMvc.perform(get("/api/v1/seats/1").header("X-Dev-Role", "CUSTOMER").header("X-Dev-User", "bob"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.userId").value(nullValue()));
+        mockMvc.perform(get("/api/v1/seats/1").header("X-Dev-Role", "CUSTOMER").header("X-Dev-User", "alice"))
+                .andExpect(jsonPath("$.data.userId").value("alice"));
+        mockMvc.perform(get("/api/v1/seats/1").header("X-Dev-Role", "ADMIN"))
+                .andExpect(jsonPath("$.data.userId").value("alice"));
+    }
+
+    @Test
+    @DisplayName("CORS: preflight from an unlisted origin is rejected")
+    void testCorsRejectsUnlistedOrigin() throws Exception {
+        mockMvc.perform(options("/api/v1/seats")
+                        .header("Origin", "https://evil.example")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(options("/api/v1/seats")
+                        .header("Origin", "http://localhost:3000")
+                        .header("Access-Control-Request-Method", "GET"))
                 .andExpect(status().isOk());
     }
 }

@@ -55,7 +55,7 @@ class RedisEventPubSubTest {
     void testPublishAndReceiveEvent() throws InterruptedException {
         testEventListener.reset(1);
 
-        TicketForgeEvent event = TicketForgeEvent.of("RESERVED", 42, "usr_pubsub_1", "Seat 42 reserved successfully");
+        TicketForgeEvent event = TicketForgeEvent.of("RESERVED", 42, "Seat 42 reserved successfully");
         redisEventPublisher.publishEvent(event);
 
         boolean received = testEventListener.latch.await(3, TimeUnit.SECONDS);
@@ -65,7 +65,6 @@ class RedisEventPubSubTest {
         TicketForgeEvent captured = testEventListener.receivedEvents.get(0);
         assertThat(captured.eventType()).isEqualTo("RESERVED");
         assertThat(captured.seatNumber()).isEqualTo(42);
-        assertThat(captured.userId()).isEqualTo("usr_pubsub_1");
         assertThat(captured.message()).isEqualTo("Seat 42 reserved successfully");
         assertThat(captured.timestamp()).isNotNull();
     }
