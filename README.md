@@ -1,52 +1,56 @@
-# ⚡ TicketForge
+# TicketForge
 
-> **High-Concurrency Event Ticketing & Priority-Based Resource Allocation Engine**
+> Event ticketing backend with concurrency-safe seat allocation and a priority waitlist.
 
 [![Java](https://img.shields.io/badge/Java-21%20LTS-orange.svg?style=flat-square&logo=openjdk)](https://openjdk.org/projects/jdk/21/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.2-brightgreen.svg?style=flat-square&logo=springboot)](https://spring.io/projects/spring-boot)
 [![Security](https://img.shields.io/badge/Auth-Supabase%20OAuth2-3ECF8E.svg?style=flat-square&logo=supabase)](https://supabase.com)
-[![Database](https://img.shields.io/badge/Database-PostgreSQL%2016%20%2F%20H2-blue.svg?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
+[![Database](https://img.shields.io/badge/Database-PostgreSQL%20%2F%20H2-blue.svg?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Caching](https://img.shields.io/badge/Cache-Redis%20%2F%20Redisson-red.svg?style=flat-square&logo=redis)](https://redis.io)
 [![GraphQL](https://img.shields.io/badge/API-GraphQL%20%2F%20REST%20%2F%20SSE-e10098.svg?style=flat-square&logo=graphql)](https://graphql.org)
-[![Documentation](https://img.shields.io/badge/OpenAPI-3.0%20%2F%20Swagger-85EA2D.svg?style=flat-square&logo=swagger)](http://localhost:8080/swagger-ui.html)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
 ---
 
-## 📖 Overview
+## Overview
 
-**TicketForge** is a high-throughput event ticketing engine designed to handle flash-sale traffic spikes under strict seat-uniqueness constraints. It combines custom in-memory algorithmic data structures ($O(\log N)$ Min-Heap and Red-Black Tree) with Spring Boot 3.3, Redis distributed caching & locking, Spring for GraphQL, Supabase OAuth2/JWT authentication, and real-time Server-Sent Events (SSE).
+TicketForge is an event ticketing backend built to handle flash-sale contention: many users competing for a fixed set of seats, with a priority waitlist for everyone who misses out. It is a Spring Boot 3.3 / Java 21 service with REST and GraphQL APIs, Redis-backed locking, caching and rate limiting, Supabase JWT authentication, and live updates over Server-Sent Events.
 
-### ✨ Key Features
-* 🛡️ **Zero Race Conditions**: Multi-layered locking with Redisson distributed locks, row-level pessimistic write locks, and `@Version` optimistic locking.
-* ⏳ **Priority Waitlist Engine**: Custom Indexed Min-Heap prioritizing VIP tiers ($P=3$) over standard tiers ($P=1$) with timestamp FIFO tie-breaking and $O(1)$ priority updates.
-* ⚡ **Distributed Caching & Rate Limiting**: Redis Cache-Aside layer (`@Cacheable`) and token-bucket bot rate limiter with silent non-blocking in-memory fallback.
-* 🔄 **Real-Time Push (SSE & WebSockets)**: Live seat map status updates via Server-Sent Events (`/api/v1/events/stream`) and GraphQL Subscriptions (`/graphql`).
-* 📊 **GraphQL & REST Dual-Interface**: Full RESTful API with RFC 7807 problem details alongside a schema-first GraphQL engine with GraphiQL IDE.
-* 🔐 **Supabase Identity & RBAC**: Stateless OAuth2 Resource Server verifying JWTs via Supabase JWKS with automated role and claim mapping (`ROLE_ADMIN` vs `ROLE_CUSTOMER`). Every booking operation derives its acting user from the token, and GraphQL resolvers carry per-operation `@PreAuthorize` rules. Role and `priority_tier` are read only from admin-controlled `app_metadata`, never user-editable `user_metadata`.
-* ⏱️ **Time-Bound Seat Holding (TTL)**: Seats can be held briefly and then confirmed into a booking; a background scheduler releases any hold that is not confirmed before its TTL elapses.
-* 🗄️ **Zero-Drift Migrations**: Flyway version-controlled migrations for PostgreSQL 16 and H2.
+### Features
+* **Concurrency-safe allocation**: Redisson distributed locks around each write transaction, row-level pessimistic locks on seats, `@Version` optimistic locking on reservations, and unique constraints in the schema. A 100-thread stress test asserts zero double bookings.
+* **Priority waitlist**: an indexed min-heap ordered by priority tier (1-5), then join time (FIFO). The index gives O(1) membership lookup and O(log n) priority updates and removals.
+* **Seat holds with TTL**: a seat can be held, then confirmed. A scheduler releases unconfirmed holds after their TTL and promotes the next waitlisted user.
+* **Caching and rate limiting**: Redis cache-aside for read endpoints and a token-bucket rate limiter on writes, both falling back to in-memory when Redis is unavailable.
+* **Live updates**: seat events are published over Redis pub/sub and pushed to clients via SSE (`/api/v1/events/stream`) and GraphQL subscriptions.
+* **REST and GraphQL**: a REST API with RFC 7807 problem details and a schema-first GraphQL API, both documented (Swagger UI, GraphiQL).
+* **Auth and RBAC**: stateless JWT verification against Supabase JWKS. The acting user always comes from the token, never the request body. Role and `priority_tier` are read only from admin-controlled `app_metadata`, never user-editable `user_metadata`. Admin operations are guarded with `@PreAuthorize` on both REST and GraphQL.
+* **Migrations and observability**: Flyway migrations, Actuator health checks, and Prometheus metrics.
+
+### Design tradeoffs
+* **In-memory structures are per instance.** The seat heap, waitlist heap and user-to-seat Red-Black Tree are hydrated from Postgres at startup and kept in sync on every write. Distributed locks serialize writes across instances, but each instance holds its own copy of these structures, so the engine is designed to run as a single instance. Scaling out would mean making Postgres the only source of truth (for example `SELECT ... FOR UPDATE SKIP LOCKED` for allocation and an indexed query for the waitlist head).
+* **Why a Red-Black Tree for user-to-seat lookups?** A hash map would give O(1) point lookups, but the tree keeps user IDs ordered, which supports the admin range release (`release-range`) in O(log n + k).
+* **One venue.** The current model is a single seat inventory with one booking per user. Multi-event support (events, per-event inventory, orders) is the next major change.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Component | Technology | Description |
 | :--- | :--- | :--- |
-| **Language & Platform** | Java 21 LTS | Eclipse Temurin 21 with Virtual Threads capability |
+| **Language & Platform** | Java 21 | Eclipse Temurin 21 with virtual threads enabled |
 | **Framework** | Spring Boot 3.3.2 | Spring MVC, Spring Data JPA, Spring Security 6, Spring for GraphQL |
-| **Persistence** | PostgreSQL 16 / H2 | Relational storage with PgBouncer connection pooling and Flyway migrations |
-| **In-Memory Engine** | Generic DSA Engine | Custom $O(\log N)$ Red-Black Tree & Indexed Min-Heap ($O(1)$ updates) |
-| **Caching & Locking** | Redis & Redisson | Redis cache-aside, Redisson distributed locks (`RLock`), token bucket rate limiter |
-| **Real-Time Streaming**| SSE & WebSockets | Server-Sent Events (`SseEmitter`) & GraphQL Subscriptions over WebSocket |
-| **Security** | Supabase OAuth2 | Stateless JWT RS256 verification via JWKS with RBAC role converter |
-| **Documentation** | OpenAPI 3 / Swagger | Springdoc OpenAPI UI and GraphiQL interactive development console |
+| **Persistence** | PostgreSQL / H2 | Supabase Postgres via its connection pooler; H2 for local dev and tests; Flyway migrations |
+| **Data structures** | Custom Java | Red-Black Tree (ordered user-to-seat index) and indexed min-heap (seat pool, waitlist) |
+| **Caching & Locking** | Redis & Redisson | Cache-aside, distributed locks (`RLock`), token-bucket rate limiter, pub/sub |
+| **Real-time** | SSE & WebSockets | `SseEmitter` stream and GraphQL subscriptions |
+| **Security** | Supabase Auth | JWT verification via JWKS with role mapping |
+| **Documentation** | OpenAPI 3 | Springdoc Swagger UI and GraphiQL |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-### 📋 Prerequisites
+### Prerequisites
 * **Java 21 LTS** or higher installed (`java -version`)
 * **Git**
 * *(Optional)* **Docker & Docker Compose** (for running PostgreSQL & Redis locally)
@@ -71,24 +75,24 @@ docker compose up --build
 
 ---
 
-## 🌐 Interactive Endpoints
+## Interactive Endpoints
 
 Once the application starts on port `8080`:
 
 | Resource | URL | Description |
 | :--- | :--- | :--- |
-| 📑 **Swagger UI (REST Docs)** | [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) | Interactive OpenAPI 3 explorer |
-| 🔮 **GraphiQL IDE (GraphQL)** | [http://localhost:8080/graphiql](http://localhost:8080/graphiql) | Interactive GraphQL query & subscription console |
-| 📄 **OpenAPI Schema (JSON)** | [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs) | Machine-readable API schema |
-| 🗄️ **H2 Database Console** | [http://localhost:8080/h2-console](http://localhost:8080/h2-console) | Local in-memory DB viewer (`dev` profile) |
-| 💓 **Actuator Health** | [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health) | System health status check |
-| 📈 **Prometheus Metrics** | [http://localhost:8080/actuator/prometheus](http://localhost:8080/actuator/prometheus) | Micrometer metrics for Prometheus scraping |
+| **Swagger UI (REST Docs)** | [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) | Interactive OpenAPI 3 explorer |
+| **GraphiQL IDE (GraphQL)** | [http://localhost:8080/graphiql](http://localhost:8080/graphiql) | Interactive GraphQL query & subscription console |
+| **OpenAPI Schema (JSON)** | [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs) | Machine-readable API schema |
+| **H2 Database Console** | [http://localhost:8080/h2-console](http://localhost:8080/h2-console) | Local in-memory DB viewer (`dev` profile) |
+| **Actuator Health** | [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health) | System health status check |
+| **Prometheus Metrics** | [http://localhost:8080/actuator/prometheus](http://localhost:8080/actuator/prometheus) | Micrometer metrics for Prometheus scraping |
 
 ---
 
-## 🔌 API Reference & Specifications
+## API Reference & Specifications
 
-### 📡 RESTful API Endpoints (`/api/v1`)
+### RESTful API Endpoints (`/api/v1`)
 
 > **Identity is never supplied by the client.** The acting user and their priority tier are
 > taken from the authenticated JWT, so no endpoint accepts a `userId` for the caller.
@@ -114,7 +118,7 @@ Once the application starts on port `8080`:
 | **`DELETE /api/v1/waitlist/{userId}`** | **Admin Only** | Path: `userId: String` | `ApiResponse<Void>` | `200 OK` |
 | **`GET /api/v1/events/stream`** | Public | _None_ (`Accept: text/event-stream`) | Server-Sent Events (SSE) Stream | `200 OK` |
 
-#### 📝 Example REST Request & Response Payloads
+#### Example REST Request & Response Payloads
 
 ##### 1. Reserve Seat (`POST /api/v1/reservations`)
 * **Request:** _(omit `seatNumber` to be allocated the best available seat)_
@@ -130,10 +134,11 @@ Once the application starts on port `8080`:
     "message": "Seat 14 successfully reserved",
     "data": {
       "id": 14,
-      "seatNumber": 14,
       "userId": "usr_402",
-      "status": "RESERVED",
-      "reservedAt": "2026-08-28T22:30:00Z"
+      "seatNumber": 14,
+      "tier": "VIP",
+      "reservedAt": "2026-08-28T22:30:00Z",
+      "expiresAt": null
     },
     "timestamp": "2026-08-28T22:30:00.123Z"
   }
@@ -160,9 +165,10 @@ booking. An unconfirmed hold is released back to the pool by the TTL scheduler.
     "message": "Seat 14 confirmed",
     "data": {
       "id": 14,
-      "seatNumber": 14,
       "userId": "usr_402",
-      "status": "RESERVED",
+      "seatNumber": 14,
+      "tier": "VIP",
+      "reservedAt": "2026-08-28T22:30:00Z",
       "expiresAt": null
     }
   }
@@ -191,7 +197,7 @@ booking. An unconfirmed hold is released back to the pool by the TTL scheduler.
   "type": "https://ticketforge.com/errors/user-already-reserved",
   "title": "User Already Has Reservation",
   "status": 409,
-  "detail": "User 'usr_402' already holds active reservation for Seat 14",
+  "detail": "User usr_402 already has an active reservation or hold",
   "instance": "/api/v1/reservations",
   "timestamp": "2026-08-28T22:30:00.123Z"
 }
@@ -199,7 +205,7 @@ booking. An unconfirmed hold is released back to the pool by the TTL scheduler.
 
 ---
 
-### 🔮 GraphQL API Reference (`/graphql`)
+### GraphQL API Reference (`/graphql`)
 
 Interactive development console accessible at: **[http://localhost:8080/graphiql](http://localhost:8080/graphiql)**
 
@@ -225,7 +231,7 @@ mutation BookTicket {
   reserveSeat(seatNumber: 42) {
     seatNumber
     userId
-    status
+    tier
     reservedAt
   }
 }
@@ -241,7 +247,7 @@ mutation HoldTicket {
 mutation ConfirmTicket {
   confirmHold {
     seatNumber
-    status
+    expiresAt
   }
 }
 
@@ -259,13 +265,15 @@ subscription WatchSeatEvents {
 
 ---
 
-## 🌍 Environment Configuration
+## Environment Configuration
 
 | Profile | Command / Variable | Database | Caching & Locking | Auth Provider |
 | :--- | :--- | :--- | :--- | :--- |
 | **`dev`** *(default)* | `SPRING_PROFILES_ACTIVE=dev` | In-Memory H2 | Local In-Memory Fallback | Local Mock / Supabase Dev |
-| **`staging`** | `SPRING_PROFILES_ACTIVE=staging` | Supabase Staging PG | Redis / Redisson | Supabase Staging Auth |
-| **`prod`** | `SPRING_PROFILES_ACTIVE=prod` | Supabase Prod (PgBouncer: 6543) | Redis Cluster / Redisson | Supabase Prod Auth |
+| **`staging`** | `SPRING_PROFILES_ACTIVE=staging` | Supabase Postgres (pooler, port 6543) | Redis / Redisson | Supabase Auth |
+| **`prod`** | `SPRING_PROFILES_ACTIVE=prod` | Supabase Postgres (pooler, port 6543) | Redis / Redisson (TLS) | Supabase Auth |
+
+The Render deployment (`render.yaml`) currently runs the `staging` profile.
 
 ### Environment Variables
 * `SPRING_PROFILES_ACTIVE`: Active profile (`dev`, `staging`, `prod`)
@@ -274,11 +282,13 @@ subscription WatchSeatEvents {
 * `SUPABASE_DB_URL`: JDBC URL to PostgreSQL
 * `SUPABASE_DB_USER`: Database username
 * `SUPABASE_DB_PASSWORD`: Database password
-* `REDIS_URL`: Redis connection URL (`redis://localhost:6379`)
+* `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_SSL`: Redis connection
+* `REDISSON_ENABLED`: use Redisson for distributed locks and rate limiting (default `true`)
+* `RATE_LIMIT_RPS`: write requests per second per user (default `5`)
 
 ---
 
-## 🧪 Testing Suite
+## Testing Suite
 
 Execute all automated unit tests, MockMvc REST tests, GraphQlTester tests, and concurrency stress tests:
 ```bash
@@ -287,13 +297,6 @@ cd backend && ./mvnw clean test
 
 ---
 
-## 📚 Project Documentation
-
-* 🗺️ **[ROADMAP.md](ROADMAP.md)**: Implementation roadmap, phase deliverables, and file structure tree.
-* 🏛️ **[TICKET_FORGE_REPORT.md](TICKET_FORGE_REPORT.md)**: Complete technical architecture blueprint and algorithm design.
-
----
-
-## 📄 License
+## License
 
 This project is licensed under the terms of the [MIT License](LICENSE).

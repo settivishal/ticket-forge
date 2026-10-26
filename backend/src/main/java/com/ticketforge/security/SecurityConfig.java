@@ -50,8 +50,6 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable)) // Allows H2 Console in dev
                 .authorizeHttpRequests(auth -> auth
-                        // Public Static Resources & Web UI
-                        .requestMatchers("/", "/index.html", "/styles.css", "/app.js", "/*.ico", "/static/**").permitAll()
                         // GraphQL execution endpoint exposes the same queries and mutations as the
                         // REST API (including admin-only operations) and must be authenticated.
                         // Declared before the permitAll matchers below so it always takes precedence.
