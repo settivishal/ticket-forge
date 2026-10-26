@@ -40,10 +40,6 @@ public class DistributedLockManager {
         return "lock:inventory";
     }
 
-    public static String userLockKey(String userId) {
-        return "lock:user:" + userId;
-    }
-
     /**
      * Executes a task under a distributed lock.
      *

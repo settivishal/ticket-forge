@@ -34,6 +34,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -55,6 +56,8 @@ public class TicketForgeServiceImpl implements TicketForgeService {
     private final UserRepository userRepository;
     private final DistributedLockManager distributedLockManager;
     private final RedisEventPublisher redisEventPublisher;
+    // Write transactions run inside the lock so they commit before it is released.
+    private final TransactionOperations tx;
 
     // In-memory DSA Caching & Matching Engine
     private final GenericRedBlackTree<String, Integer> reservationsTree = new GenericRedBlackTree<>();
@@ -102,7 +105,6 @@ public class TicketForgeServiceImpl implements TicketForgeService {
     }
 
     @Override
-    @Transactional
     @Caching(evict = {
             @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
             @CacheEvict(value = RedisConfig.CACHE_SEATS, allEntries = true),
@@ -115,7 +117,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             throw new InvalidRequestException("Seat count must be greater than 0. Provided: " + seatCount);
         }
 
-        distributedLockManager.executeWithLock(DistributedLockManager.inventoryLockKey(), 10, 30, () -> {
+        distributedLockManager.executeWithLock(DistributedLockManager.inventoryLockKey(), 10, 30, () -> tx.executeWithoutResult(status -> {
             log.info("Initializing venue with {} seats (resetting existing inventory)...", seatCount);
 
             // Delete existing reservations, waitlist entries, and seats
@@ -143,11 +145,10 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             seatRepository.saveAll(seatsToSave);
             log.info("Successfully initialized and saved {} seats to database and available seats heap", seatCount);
             redisEventPublisher.publishEvent(TicketForgeEvent.of("INITIALIZED", seatCount, null, "Initialized venue with " + seatCount + " seats"));
-        });
+        }));
     }
 
     @Override
-    @Transactional
     @Caching(evict = {
             @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
             @CacheEvict(value = RedisConfig.CACHE_SEATS, allEntries = true),
@@ -160,7 +161,6 @@ public class TicketForgeServiceImpl implements TicketForgeService {
     }
 
     @Override
-    @Transactional
     @Caching(evict = {
             @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
             @CacheEvict(value = RedisConfig.CACHE_SEATS, allEntries = true),
@@ -177,7 +177,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
     }
 
     private ReservationResponse processSeatReservation(String userId, int priority, Instant expiresAt, Integer requestedSeat) {
-        return distributedLockManager.executeWithLock(DistributedLockManager.inventoryLockKey(), 10, 15, () -> {
+        return distributedLockManager.executeWithLock(DistributedLockManager.inventoryLockKey(), 10, 15, () -> tx.execute(status -> {
             validateUserNotAlreadyBookedOrWaiting(userId);
 
             if (priority < 1 || priority > 5) {
@@ -216,7 +216,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
                 redisEventPublisher.publishEvent(TicketForgeEvent.of("WAITLISTED", null, userId, "User " + userId + " added to waitlist (Priority " + priority + ")"));
                 return null; // Signals placement on waitlist
             }
-        });
+        }));
     }
 
     /**
@@ -248,7 +248,6 @@ public class TicketForgeServiceImpl implements TicketForgeService {
     }
 
     @Override
-    @Transactional
     @Caching(evict = {
             @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
             @CacheEvict(value = RedisConfig.CACHE_SEATS, allEntries = true),
@@ -256,7 +255,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             @CacheEvict(value = RedisConfig.CACHE_RESERVATIONS, allEntries = true)
     })
     public ReservationResponse confirmHold(String userId) {
-        return distributedLockManager.executeWithLock(DistributedLockManager.inventoryLockKey(), 10, 15, () -> {
+        return distributedLockManager.executeWithLock(DistributedLockManager.inventoryLockKey(), 10, 15, () -> tx.execute(status -> {
             Reservation reservation = reservationRepository.findByUserId(userId)
                     .orElseThrow(() -> new ReservationNotFoundException(
                             "User " + userId + " has no reservation to confirm"));
@@ -284,11 +283,10 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             redisEventPublisher.publishEvent(TicketForgeEvent.of("CONFIRMED", seat.getSeatNumber(), userId,
                     "User " + userId + " confirmed seat " + seat.getSeatNumber()));
             return mapToReservationResponse(confirmed);
-        });
+        }));
     }
 
     @Override
-    @Transactional
     @Caching(evict = {
             @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
             @CacheEvict(value = RedisConfig.CACHE_SEATS, allEntries = true),
@@ -297,7 +295,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             @CacheEvict(value = RedisConfig.CACHE_RESERVATIONS, allEntries = true)
     })
     public void cancelReservation(int seatNumber, String userId) {
-        distributedLockManager.executeWithLock(DistributedLockManager.seatLockKey(seatNumber), 10, 15, () -> {
+        distributedLockManager.executeWithLock(DistributedLockManager.inventoryLockKey(), 10, 15, () -> tx.executeWithoutResult(status -> {
             GenericRedBlackTree.Node<String, Integer> node = reservationsTree.findNode(userId);
 
             if (node == null) {
@@ -321,17 +319,16 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
             // Cascading re-allocation: If users are waiting, promote highest priority user
             cascadeSeatAssignment(seat);
-        });
+        }));
     }
 
     @Override
-    @Transactional
     @Caching(evict = {
             @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
             @CacheEvict(value = RedisConfig.CACHE_WAITLIST, allEntries = true)
     })
     public boolean exitWaitlist(String userId) {
-        return distributedLockManager.executeWithLock(DistributedLockManager.userLockKey(userId), 5, 10, () -> {
+        return distributedLockManager.executeWithLock(DistributedLockManager.inventoryLockKey(), 5, 10, () -> tx.execute(status -> {
             if (!waitlistHeap.containsId(userId)) {
                 log.warn("User {} is not in the waitlist", userId);
                 return false;
@@ -342,16 +339,15 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             log.info("User {} removed from the waitlist", userId);
             redisEventPublisher.publishEvent(TicketForgeEvent.of("EXIT_WAITLIST", null, userId, "User " + userId + " exited waitlist"));
             return true;
-        });
+        }));
     }
 
     @Override
-    @Transactional
     @Caching(evict = {
             @CacheEvict(value = RedisConfig.CACHE_WAITLIST, allEntries = true)
     })
     public boolean updatePriority(String userId, int newPriority) {
-        return distributedLockManager.executeWithLock(DistributedLockManager.userLockKey(userId), 5, 10, () -> {
+        return distributedLockManager.executeWithLock(DistributedLockManager.inventoryLockKey(), 5, 10, () -> tx.execute(status -> {
             if (newPriority < 1 || newPriority > 5) {
                 throw new InvalidRequestException("Priority must be between 1 and 5. Provided: " + newPriority);
             }
@@ -373,11 +369,10 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             log.info("User {} priority successfully updated to {}", userId, newPriority);
             redisEventPublisher.publishEvent(TicketForgeEvent.of("PRIORITY_UPDATED", null, userId, "User " + userId + " priority set to " + newPriority));
             return true;
-        });
+        }));
     }
 
     @Override
-    @Transactional
     @Caching(evict = {
             @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
             @CacheEvict(value = RedisConfig.CACHE_SEATS, allEntries = true),
@@ -386,7 +381,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             @CacheEvict(value = RedisConfig.CACHE_RESERVATIONS, allEntries = true)
     })
     public void addSeats(int count) {
-        distributedLockManager.executeWithLock(DistributedLockManager.inventoryLockKey(), 10, 30, () -> {
+        distributedLockManager.executeWithLock(DistributedLockManager.inventoryLockKey(), 10, 30, () -> tx.executeWithoutResult(status -> {
             if (count <= 0) {
                 throw new InvalidRequestException("Seat addition count must be greater than 0");
             }
@@ -415,11 +410,10 @@ public class TicketForgeServiceImpl implements TicketForgeService {
                 cascadeSeatAssignment(seat);
             }
             redisEventPublisher.publishEvent(TicketForgeEvent.of("EXPANDED", count, null, "Added " + count + " new seats"));
-        });
+        }));
     }
 
     @Override
-    @Transactional
     @Caching(evict = {
             @CacheEvict(value = RedisConfig.CACHE_SYSTEM_STATUS, allEntries = true),
             @CacheEvict(value = RedisConfig.CACHE_SEATS, allEntries = true),
@@ -428,7 +422,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             @CacheEvict(value = RedisConfig.CACHE_RESERVATIONS, allEntries = true)
     })
     public List<Integer> releaseSeats(String fromUserId, String toUserId) {
-        return distributedLockManager.executeWithLock(DistributedLockManager.inventoryLockKey(), 10, 30, () -> {
+        return distributedLockManager.executeWithLock(DistributedLockManager.inventoryLockKey(), 10, 30, () -> tx.execute(status -> {
             if (fromUserId == null || toUserId == null || fromUserId.compareTo(toUserId) > 0) {
                 throw new InvalidRequestException("Invalid user range: fromUserId must be lexicographically <= toUserId");
             }
@@ -461,7 +455,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             log.info("Released {} seats for range [{}, {}]", releasedSeatNumbers.size(), fromUserId, toUserId);
             redisEventPublisher.publishEvent(TicketForgeEvent.of("BATCH_RELEASED", releasedSeatNumbers.size(), null, "Released " + releasedSeatNumbers.size() + " seats"));
             return releasedSeatNumbers;
-        });
+        }));
     }
 
     /**

@@ -20,7 +20,7 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
         String userId = jwt.getSubject();
         String email = jwt.getClaimAsString("email");
 
-        // Extract role from Supabase app_metadata or user_metadata
+        // Extract role from Supabase app_metadata (admin-controlled)
         String role = "ROLE_CUSTOMER";
         Map<String, Object> appMetadata = jwt.getClaim("app_metadata");
         if (appMetadata != null && appMetadata.containsKey("role")) {
@@ -28,16 +28,17 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
             role = rawRole.startsWith("ROLE_") ? rawRole : "ROLE_" + rawRole;
         }
 
-        // Extract priority_tier from user_metadata (default to 1)
+        // Extract priority_tier from app_metadata (default to 1). Never user_metadata:
+        // Supabase lets users edit their own user_metadata, which would let anyone jump the waitlist.
         int priorityTier = 1;
-        Map<String, Object> userMetadata = jwt.getClaim("user_metadata");
-        if (userMetadata != null && userMetadata.containsKey("priority_tier")) {
+        if (appMetadata != null && appMetadata.containsKey("priority_tier")) {
             try {
-                priorityTier = Integer.parseInt(String.valueOf(userMetadata.get("priority_tier")));
+                priorityTier = Integer.parseInt(String.valueOf(appMetadata.get("priority_tier")));
             } catch (NumberFormatException ignored) {
                 priorityTier = 1;
             }
         }
+        priorityTier = Math.max(1, Math.min(5, priorityTier));
 
         List<GrantedAuthority> authorities = new ArrayList<>();
         authorities.add(new SimpleGrantedAuthority(role));
