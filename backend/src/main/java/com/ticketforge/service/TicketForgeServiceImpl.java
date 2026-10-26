@@ -144,7 +144,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
             seatRepository.saveAll(seatsToSave);
             log.info("Successfully initialized and saved {} seats to database and available seats heap", seatCount);
-            redisEventPublisher.publishEvent(TicketForgeEvent.of("INITIALIZED", seatCount, null, "Initialized venue with " + seatCount + " seats"));
+            redisEventPublisher.publishEvent(TicketForgeEvent.of("INITIALIZED", seatCount, "Initialized venue with " + seatCount + " seats"));
         }));
     }
 
@@ -213,7 +213,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
                 waitlistHeap.insert(savedEntry);
 
                 log.info("Venue sold out. User {} added to waitlist with priority {}", userId, priority);
-                redisEventPublisher.publishEvent(TicketForgeEvent.of("WAITLISTED", null, userId, "User " + userId + " added to waitlist (Priority " + priority + ")"));
+                redisEventPublisher.publishEvent(TicketForgeEvent.of("WAITLISTED", null, "A user joined the waitlist (Priority " + priority + ")"));
                 return null; // Signals placement on waitlist
             }
         }));
@@ -243,7 +243,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
         log.info("User {} successfully allocated seat {} (Status={})", userId, seatNumber, targetStatus);
         ReservationResponse response = mapToReservationResponse(savedRes);
-        redisEventPublisher.publishEvent(TicketForgeEvent.of(targetStatus.name(), seatNumber, userId, "Seat " + seatNumber + " allocated to user " + userId));
+        redisEventPublisher.publishEvent(TicketForgeEvent.of(targetStatus.name(), seatNumber, "Seat " + seatNumber + " " + targetStatus.name().toLowerCase()));
         return response;
     }
 
@@ -280,8 +280,8 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             Reservation confirmed = reservationRepository.save(reservation);
 
             log.info("User {} confirmed hold on seat {}", userId, seat.getSeatNumber());
-            redisEventPublisher.publishEvent(TicketForgeEvent.of("CONFIRMED", seat.getSeatNumber(), userId,
-                    "User " + userId + " confirmed seat " + seat.getSeatNumber()));
+            redisEventPublisher.publishEvent(TicketForgeEvent.of("CONFIRMED", seat.getSeatNumber(),
+                    "Seat " + seat.getSeatNumber() + " confirmed"));
             return mapToReservationResponse(confirmed);
         }));
     }
@@ -315,7 +315,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
                     .orElseThrow(() -> new SeatNotFoundException("Seat " + seatNumber + " not found"));
 
             log.info("User {} canceled reservation for seat {}", userId, seatNumber);
-            redisEventPublisher.publishEvent(TicketForgeEvent.of("CANCELLED", seatNumber, userId, "User " + userId + " canceled seat " + seatNumber));
+            redisEventPublisher.publishEvent(TicketForgeEvent.of("CANCELLED", seatNumber, "Seat " + seatNumber + " released"));
 
             // Cascading re-allocation: If users are waiting, promote highest priority user
             cascadeSeatAssignment(seat);
@@ -337,7 +337,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             waitlistHeap.removeById(userId);
             waitlistRepository.deleteByUserId(userId);
             log.info("User {} removed from the waitlist", userId);
-            redisEventPublisher.publishEvent(TicketForgeEvent.of("EXIT_WAITLIST", null, userId, "User " + userId + " exited waitlist"));
+            redisEventPublisher.publishEvent(TicketForgeEvent.of("EXIT_WAITLIST", null, "A user left the waitlist"));
             return true;
         }));
     }
@@ -367,7 +367,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             });
 
             log.info("User {} priority successfully updated to {}", userId, newPriority);
-            redisEventPublisher.publishEvent(TicketForgeEvent.of("PRIORITY_UPDATED", null, userId, "User " + userId + " priority set to " + newPriority));
+            redisEventPublisher.publishEvent(TicketForgeEvent.of("PRIORITY_UPDATED", null, "A waitlist priority was set to " + newPriority));
             return true;
         }));
     }
@@ -409,7 +409,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             for (Seat seat : savedSeats) {
                 cascadeSeatAssignment(seat);
             }
-            redisEventPublisher.publishEvent(TicketForgeEvent.of("EXPANDED", count, null, "Added " + count + " new seats"));
+            redisEventPublisher.publishEvent(TicketForgeEvent.of("EXPANDED", count, "Added " + count + " new seats"));
         }));
     }
 
@@ -453,7 +453,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
             }
 
             log.info("Released {} seats for range [{}, {}]", releasedSeatNumbers.size(), fromUserId, toUserId);
-            redisEventPublisher.publishEvent(TicketForgeEvent.of("BATCH_RELEASED", releasedSeatNumbers.size(), null, "Released " + releasedSeatNumbers.size() + " seats"));
+            redisEventPublisher.publishEvent(TicketForgeEvent.of("BATCH_RELEASED", releasedSeatNumbers.size(), "Released " + releasedSeatNumbers.size() + " seats"));
             return releasedSeatNumbers;
         }));
     }
@@ -480,7 +480,7 @@ public class TicketForgeServiceImpl implements TicketForgeService {
 
             log.info("Waitlist Auto-Promotion: User {} promoted and allocated seat {}",
                     waitingUser.getUserId(), seat.getSeatNumber());
-            redisEventPublisher.publishEvent(TicketForgeEvent.of("PROMOTED", seat.getSeatNumber(), waitingUser.getUserId(), "User " + waitingUser.getUserId() + " promoted to seat " + seat.getSeatNumber()));
+            redisEventPublisher.publishEvent(TicketForgeEvent.of("PROMOTED", seat.getSeatNumber(), "Seat " + seat.getSeatNumber() + " assigned from the waitlist"));
         } else {
             seat.setStatus(SeatStatus.AVAILABLE);
             seatRepository.save(seat);

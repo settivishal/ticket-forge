@@ -157,7 +157,7 @@ class TicketForgeE2EIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.waitlistCount").value(0));
 
-        authenticateAs("usr_e2e_2", "ROLE_CUSTOMER");
+        authenticateAs("usr_e2e_4", "ROLE_CUSTOMER"); // occupant ids are visible only to the occupant or an admin
         String gqlSeat1 = """
             query {
                 seat(seatNumber: 1) {

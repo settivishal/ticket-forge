@@ -65,7 +65,7 @@ cd ticket-forge
 
 #### Option A: Quick Start with In-Memory H2 (Dev Profile)
 ```bash
-cd backend && ./mvnw spring-boot:run
+cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
 #### Option B: Full Stack with Docker Compose (App + PostgreSQL + Redis)
@@ -97,6 +97,8 @@ Once the application starts on port `8080`:
 > **Identity is never supplied by the client.** The acting user and their priority tier are
 > taken from the authenticated JWT, so no endpoint accepts a `userId` for the caller.
 > Endpoints that name a `{userId}` act on *another* user and are therefore admin-only.
+> Seat and waitlist listings only show a user id to that user or to an admin, and live
+> events (SSE, GraphQL subscriptions) never carry user ids.
 
 | Method & Endpoint | Role | Request Parameters / Body | Response Payload | HTTP Status |
 | :--- | :---: | :--- | :--- | :---: |
@@ -269,9 +271,9 @@ subscription WatchSeatEvents {
 
 | Profile | Command / Variable | Database | Caching & Locking | Auth Provider |
 | :--- | :--- | :--- | :--- | :--- |
-| **`dev`** *(default)* | `SPRING_PROFILES_ACTIVE=dev` | In-Memory H2 | Local In-Memory Fallback | Local Mock / Supabase Dev |
+| **`dev`** | `SPRING_PROFILES_ACTIVE=dev` | In-Memory H2 | Local In-Memory Fallback | Local Mock / Supabase Dev |
 | **`staging`** | `SPRING_PROFILES_ACTIVE=staging` | Supabase Postgres (pooler, port 6543) | Redis / Redisson | Supabase Auth |
-| **`prod`** | `SPRING_PROFILES_ACTIVE=prod` | Supabase Postgres (pooler, port 6543) | Redis / Redisson (TLS) | Supabase Auth |
+| **`prod`** *(default)* | `SPRING_PROFILES_ACTIVE=prod` | Supabase Postgres (pooler, port 6543) | Redis / Redisson (TLS) | Supabase Auth |
 
 The Render deployment (`render.yaml`) currently runs the `staging` profile.
 
@@ -285,6 +287,7 @@ The Render deployment (`render.yaml`) currently runs the `staging` profile.
 * `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_SSL`: Redis connection
 * `REDISSON_ENABLED`: use Redisson for distributed locks and rate limiting (default `true`)
 * `RATE_LIMIT_RPS`: write requests per second per user (default `5`)
+* `CORS_ALLOWED_ORIGINS`: comma-separated origins allowed to call the API cross-origin (default `http://localhost:3000`)
 
 ---
 

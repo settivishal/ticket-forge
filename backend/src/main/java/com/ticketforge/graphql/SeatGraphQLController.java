@@ -34,13 +34,14 @@ public class SeatGraphQLController {
         return allSeats.stream()
                 .filter(seat -> status == null || seat.status() == status)
                 .filter(seat -> tier == null || seat.tier() == tier)
+                .map(SeatResponse::visibleToCaller)
                 .toList();
     }
 
     @QueryMapping
     public SeatResponse seat(@Argument int seatNumber) {
         log.debug("GraphQL Query: seat(seatNumber={})", seatNumber);
-        return ticketForgeService.getSeatByNumber(seatNumber);
+        return ticketForgeService.getSeatByNumber(seatNumber).visibleToCaller();
     }
 
     @MutationMapping

@@ -82,7 +82,7 @@ class RedisCacheAndRateLimitingIntegrationTest {
     @Test
     @DisplayName("Event Pub/Sub: Local Domain Event Publishing operates without crashing when Redis is local fallback")
     void testLocalEventPublishing() {
-        TicketForgeEvent event = TicketForgeEvent.of("RESERVED", 7, "usr_pubsub_test", "Seat 7 reserved");
+        TicketForgeEvent event = TicketForgeEvent.of("RESERVED", 7, "Seat 7 reserved");
         eventPublisher.publishEvent(event);
         assertThat(event.eventType()).isEqualTo("RESERVED");
         assertThat(event.seatNumber()).isEqualTo(7);

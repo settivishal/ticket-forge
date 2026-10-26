@@ -41,7 +41,7 @@ class WaitlistControllerTest {
 
     @Test
     @DisplayName("GET /api/v1/waitlist - retrieves active waitlist")
-    @WithMockUser(roles = "CUSTOMER")
+    @WithMockUser(roles = "ADMIN") // customers only see their own user id
     void testGetWaitlist() throws Exception {
         mockMvc.perform(get("/api/v1/waitlist")
                         .contentType(MediaType.APPLICATION_JSON))

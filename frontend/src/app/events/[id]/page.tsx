@@ -75,7 +75,7 @@ export default function EventBookingPage({ params }: { params: Promise<{ id: str
         try {
           const domEvent: DomainEvent = JSON.parse(e.data);
           if (domEvent.eventType === "SEAT_RESERVED") {
-            showToast(`Seat #${domEvent.seatNumber} reserved (${domEvent.userId})`, "success");
+            showToast(`Seat #${domEvent.seatNumber} reserved`, "success");
           } else if (domEvent.eventType === "SEAT_HELD") {
             showToast(`Seat #${domEvent.seatNumber} placed on active hold`, "warning");
           } else if (domEvent.eventType === "VENUE_EXPANDED") {

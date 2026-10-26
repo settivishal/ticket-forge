@@ -32,6 +32,11 @@ public class SecurityConfig {
     @Value("${ticketforge.ratelimit.rps:5}")
     private long rateLimitPerSecond;
 
+    // The Next.js frontend proxies /api through its own origin, so browsers rarely need CORS.
+    // Only listed origins may call the API cross-origin with credentials.
+    @Value("${ticketforge.cors.allowed-origins:http://localhost:3000}")
+    private List<String> corsAllowedOrigins;
+
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private DevAuthenticationFilter devAuthenticationFilter;
 
@@ -79,7 +84,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedOrigins(corsAllowedOrigins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key", "Accept", "Origin"));
         configuration.setAllowCredentials(true);

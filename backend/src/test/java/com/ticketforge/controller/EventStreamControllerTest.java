@@ -47,7 +47,7 @@ class EventStreamControllerTest {
 
         assertThat(sseEmitterManager.getActiveEmitterCount()).isGreaterThan(initialCount);
 
-        TicketForgeEvent event = TicketForgeEvent.of("RESERVED", 1, "usr_sse_test", "Test seat reserved");
+        TicketForgeEvent event = TicketForgeEvent.of("RESERVED", 1, "Test seat reserved");
         sseEmitterManager.broadcast(event);
 
         emitter.complete();
