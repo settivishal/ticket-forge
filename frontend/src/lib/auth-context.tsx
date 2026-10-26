@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: u.email || email,
           name: meta.name || email.split("@")[0],
           role,
-          priority: parseInt(meta.priority_tier, 10) || 1,
+          priority: parseInt(appMeta.priority_tier, 10) || 1,
         };
 
         setCurrentUser(profile);

@@ -23,7 +23,7 @@
 * ⚡ **Distributed Caching & Rate Limiting**: Redis Cache-Aside layer (`@Cacheable`) and token-bucket bot rate limiter with silent non-blocking in-memory fallback.
 * 🔄 **Real-Time Push (SSE & WebSockets)**: Live seat map status updates via Server-Sent Events (`/api/v1/events/stream`) and GraphQL Subscriptions (`/graphql`).
 * 📊 **GraphQL & REST Dual-Interface**: Full RESTful API with RFC 7807 problem details alongside a schema-first GraphQL engine with GraphiQL IDE.
-* 🔐 **Supabase Identity & RBAC**: Stateless OAuth2 Resource Server verifying JWTs via Supabase JWKS with automated role and claim mapping (`ROLE_ADMIN` vs `ROLE_CUSTOMER`). Every booking operation derives its acting user from the token, and GraphQL resolvers carry per-operation `@PreAuthorize` rules.
+* 🔐 **Supabase Identity & RBAC**: Stateless OAuth2 Resource Server verifying JWTs via Supabase JWKS with automated role and claim mapping (`ROLE_ADMIN` vs `ROLE_CUSTOMER`). Every booking operation derives its acting user from the token, and GraphQL resolvers carry per-operation `@PreAuthorize` rules. Role and `priority_tier` are read only from admin-controlled `app_metadata`, never user-editable `user_metadata`.
 * ⏱️ **Time-Bound Seat Holding (TTL)**: Seats can be held briefly and then confirmed into a booking; a background scheduler releases any hold that is not confirmed before its TTL elapses.
 * 🗄️ **Zero-Drift Migrations**: Flyway version-controlled migrations for PostgreSQL 16 and H2.
 

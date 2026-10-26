@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -60,7 +61,8 @@ class TicketForgeServiceMockitoTest {
                 waitlistRepository,
                 userRepository,
                 distributedLockManager,
-                redisEventPublisher
+                redisEventPublisher,
+                TransactionOperations.withoutTransaction()
         );
     }
 
